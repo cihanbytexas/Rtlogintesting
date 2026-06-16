@@ -1,13 +1,13 @@
 // Supabase kütüphanesini doğrudan tarayıcıya (CDN üzerinden) çekiyoruz
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
 
-// KEY VE URL BİLGİLERİ (Projendeki mevcut keyler)
+// KEY VE URL BİLGİLERİ
 const supabaseUrl = "https://ppdwtpjglkphayfxexhv.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwZHd0cGpnbGtwaGF5ZnhleGh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNTc5ODEsImV4cCI6MjA5NjgzMzk4MX0.fJIyyxfU15EgrNARWkISFHJvU7-o-QpZbIKbRc3q_-s";
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// DOM ELEMENTLERİ
+// DOM ELEMENTLERİ - Temel
 const authContainer = document.getElementById('auth-container');
 const dashboardContainer = document.getElementById('dashboard-container');
 
@@ -20,10 +20,19 @@ const showRegisterBtn = document.getElementById('show-register');
 const showLoginBtn = document.getElementById('show-login');
 const showForgotPasswordBtn = document.getElementById('show-forgot-password');
 const backToLoginBtn = document.getElementById('back-to-login');
-
 const logoutBtn = document.getElementById('logout-btn');
 
-// PROFİL FOTOĞRAFI SEÇİMİ VE ÖNİZLEME
+// DOM ELEMENTLERİ - Profil Düzenleme
+const dashboardView = document.getElementById('dashboard-view');
+const editProfileForm = document.getElementById('edit-profile-form');
+const editProfileBtn = document.getElementById('edit-profile-btn');
+const cancelEditBtn = document.getElementById('cancel-edit-btn');
+const editAvatarInput = document.getElementById('edit-avatar');
+const editAvatarImg = document.getElementById('edit-avatar-img');
+const editNameInput = document.getElementById('edit-name');
+let selectedUpdateAvatarFile = null;
+
+// PROFİL FOTOĞRAFI SEÇİMİ VE ÖNİZLEME (Kayıt Ekranı)
 const avatarInput = document.getElementById('reg-avatar');
 const avatarPreview = document.getElementById('avatar-preview');
 let selectedAvatarFile = null;
@@ -77,7 +86,7 @@ registerForm.addEventListener('submit', async (e) => {
     const password = document.getElementById('reg-password').value;
     const btn = document.getElementById('register-btn');
     
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fotoğraf Yükleniyor ve Kayıt Yapılıyor...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İşlem Yapılıyor...';
     btn.disabled = true;
 
     try {
@@ -172,7 +181,7 @@ loginForm.addEventListener('submit', async (e) => {
     }
 });
 
-// 3. ŞİFRE SIFIRLAMA LİNKİ GÖNDERME (YENİ EKLENDİ)
+// 3. ŞİFRE SIFIRLAMA LİNKİ GÖNDERME
 forgotPasswordForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -183,7 +192,6 @@ forgotPasswordForm.addEventListener('submit', async (e) => {
     btn.disabled = true;
 
     try {
-        // Mevcut site adresini otomatik alıp Supabase'e bildiriyoruz ki maildeki link buraya dönsün
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: window.location.origin
         });
@@ -208,7 +216,7 @@ forgotPasswordForm.addEventListener('submit', async (e) => {
     }
 });
 
-// 4. YENİ ŞİFREYİ KAYDETME (YENİ EKLENDİ - Maildeki linke tıklanınca çalışır)
+// 4. YENİ ŞİFREYİ KAYDETME
 resetPasswordForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -244,7 +252,103 @@ resetPasswordForm.addEventListener('submit', async (e) => {
     }
 });
 
-// 5. ÇIKIŞ YAPMA (SIGN OUT) İŞLEMİ
+// 5. PROFİL DÜZENLEME İŞLEMLERİ (YENİ EKLENDİ)
+
+// Düzenleme Görünümüne Geçiş
+editProfileBtn.addEventListener('click', () => {
+    dashboardView.classList.add('hidden');
+    editProfileForm.classList.remove('hidden');
+    
+    // Formu mevcut verilerle doldur
+    editNameInput.value = document.getElementById('dash-name').innerText;
+    editAvatarImg.src = document.getElementById('dash-avatar').src;
+    selectedUpdateAvatarFile = null;
+});
+
+// Düzenlemeyi İptal Etme
+cancelEditBtn.addEventListener('click', () => {
+    editProfileForm.classList.add('hidden');
+    dashboardView.classList.remove('hidden');
+    selectedUpdateAvatarFile = null;
+});
+
+// Düzenleme Ekranı Fotoğraf Önizleme
+editAvatarInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        selectedUpdateAvatarFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            editAvatarImg.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// Profili Kaydetme İşlemi
+editProfileForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const newName = editNameInput.value;
+    const btn = document.getElementById('save-edit-btn');
+    
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
+    btn.disabled = true;
+
+    try {
+        // Oturum Kontrolü
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) throw new Error("Oturum bulunamadı, lütfen tekrar giriş yapın.");
+
+        let updatedAvatarUrl = null;
+
+        // Fotoğraf değiştiyse yeni fotoğrafı Storage'a yükle
+        if (selectedUpdateAvatarFile) {
+            const fileExt = selectedUpdateAvatarFile.name.split('.').pop();
+            const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
+            
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, selectedUpdateAvatarFile);
+
+            if (uploadError) throw uploadError;
+
+            // Yüklenen fotoğrafın linkini al
+            const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+            updatedAvatarUrl = publicUrlData.publicUrl;
+        }
+
+        // Tabloyu güncelle (Sadece isim veya hem isim hem fotoğraf linki)
+        const updateData = { ad_soyad: newName };
+        if (updatedAvatarUrl) {
+            updateData.avatar_url = updatedAvatarUrl;
+        }
+
+        const { error: updateError } = await supabase
+            .from('uyeler')
+            .update(updateData)
+            .eq('id', session.user.id);
+
+        if (updateError) throw updateError;
+
+        Swal.fire({ icon: 'success', title: 'Başarılı', text: 'Profiliniz başarıyla güncellendi.', timer: 1500, showConfirmButton: false });
+        
+        // Görünümü eski haline döndür
+        editProfileForm.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+        
+        // Verileri yeniden çekip ekrana bas
+        checkSession();
+
+    } catch (error) {
+        Swal.fire({ icon: 'error', title: 'Hata', text: error.message });
+    } finally {
+        btn.innerHTML = 'Değişiklikleri Kaydet';
+        btn.disabled = false;
+    }
+});
+
+// 6. ÇIKIŞ YAPMA (SIGN OUT) İŞLEMİ
 logoutBtn.addEventListener('click', async () => {
     try {
         const { error } = await supabase.auth.signOut();
@@ -258,14 +362,14 @@ logoutBtn.addEventListener('click', async () => {
     }
 });
 
-// 6. OTURUM KONTROLÜ VE PANEL VERİLERİNİ DOLDURMA
+// 7. OTURUM KONTROLÜ VE PANEL VERİLERİNİ DOLDURMA
 async function checkSession() {
     const { data: { session }, error } = await supabase.auth.getSession();
     
     if (session) {
         authContainer.classList.add('hidden');
         dashboardContainer.classList.remove('hidden');
-        resetPasswordForm.classList.add('hidden'); // Yeni şifre formu açık kalmışsa gizle
+        resetPasswordForm.classList.add('hidden');
         
         document.getElementById('dash-email').innerText = session.user.email;
 
@@ -292,23 +396,22 @@ async function checkSession() {
     } else {
         authContainer.classList.remove('hidden');
         dashboardContainer.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+        editProfileForm.classList.add('hidden');
     }
 }
 
 // Sayfa yüklendiğinde oturumu kontrol et
 document.addEventListener('DOMContentLoaded', checkSession);
 
-// Supabase oturum durumunu sürekli dinler (ÖNEMLİ DEĞİŞİKLİK BURADA)
+// Supabase oturum durumunu sürekli dinler
 supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') {
-        // Sistem kullanıcının şifre sıfırlama linkine tıkladığını anlar
         authContainer.classList.remove('hidden');
         dashboardContainer.classList.add('hidden');
         loginForm.classList.add('hidden');
         registerForm.classList.add('hidden');
         forgotPasswordForm.classList.add('hidden');
-        
-        // Sadece yeni şifre belirleme formunu açar
         resetPasswordForm.classList.remove('hidden');
     } else if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         checkSession();
