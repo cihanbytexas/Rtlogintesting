@@ -8,11 +8,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* Profil fotoğrafı yükleme ve değiştirme animasyonları için */
         .avatar-upload:hover .avatar-overlay { opacity: 1; }
+        /* Scrollbar gizleme (Şık görünüm için) */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+<body class="bg-slate-100 min-h-screen flex flex-col items-center py-10 px-4">
 
     <div id="auth-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md transition-all duration-300">
         <div class="text-center mb-8">
@@ -73,7 +75,6 @@
         </form>
 
         <form id="register-form" class="space-y-4 hidden">
-            
             <div class="flex justify-center mb-4">
                 <label for="reg-avatar" class="avatar-upload relative cursor-pointer group">
                     <div id="avatar-preview" class="w-24 h-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-blue-500">
@@ -85,7 +86,6 @@
                     <input type="file" id="reg-avatar" accept="image/png, image/jpeg, image/jpg" class="hidden">
                 </label>
             </div>
-
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1">Ad Soyad</label>
                 <input type="text" id="reg-name" required class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Adınız Soyadınız">
@@ -115,69 +115,131 @@
         </form>
     </div>
 
-    <div id="dashboard-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-2xl hidden">
-        <div class="flex justify-between items-center border-b pb-4 mb-6">
-            <h2 class="text-2xl font-bold text-slate-800">Hesabım</h2>
-            <button id="logout-btn" class="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-500 hover:text-white rounded-lg font-semibold transition-colors">
-                <i class="fa-solid fa-power-off"></i> Çıkış Yap
-            </button>
-        </div>
+    <div id="main-app-container" class="w-full max-w-2xl hidden space-y-6">
         
-        <div id="dashboard-view" class="bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-6 items-center sm:items-start relative transition-all">
+        <div id="dashboard-container" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h2 class="text-xl font-bold text-slate-800">Hesabım</h2>
+                <div class="flex gap-2">
+                    <button id="notification-btn" class="relative w-10 h-10 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full flex items-center justify-center transition-colors">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white rounded-full hidden" id="notification-badge"></span>
+                    </button>
+                    <button id="logout-btn" class="w-10 h-10 bg-red-50 hover:bg-red-500 hover:text-white text-red-500 rounded-full flex items-center justify-center transition-colors" title="Çıkış Yap">
+                        <i class="fa-solid fa-power-off"></i>
+                    </button>
+                </div>
+            </div>
             
-            <button id="edit-profile-btn" class="absolute top-4 right-4 text-slate-400 hover:text-blue-600 transition-colors" title="Profili Düzenle">
-                <i class="fa-solid fa-pen-to-square text-xl"></i>
-            </button>
-
-            <div class="w-32 h-32 rounded-full bg-white border-4 border-white shadow-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
-                <img id="dash-avatar" src="https://via.placeholder.com/150?text=Profil" alt="Profil Fotoğrafı" class="w-full h-full object-cover">
+            <div id="dashboard-view" class="flex items-center gap-4 relative transition-all">
+                <button id="edit-profile-btn" class="absolute top-0 right-0 text-slate-400 hover:text-blue-600 transition-colors" title="Profili Düzenle">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <div class="w-20 h-20 rounded-full bg-white border-2 border-slate-200 shadow-sm overflow-hidden flex-shrink-0">
+                    <img id="dash-avatar" src="https://via.placeholder.com/150?text=Profil" class="w-full h-full object-cover">
+                </div>
+                <div>
+                    <h3 id="dash-name" class="text-lg font-bold text-slate-800 mb-1">Yükleniyor...</h3>
+                    <div class="flex items-center gap-2">
+                        <span id="dash-role" class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[11px] font-bold uppercase tracking-wider">Yükleniyor...</span>
+                        <span class="text-xs text-slate-500" id="dash-email">Yükleniyor...</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="flex-1 text-center sm:text-left pt-2">
-                <h3 id="dash-name" class="text-2xl font-bold text-slate-800 mb-1">Yükleniyor...</h3>
-                <span id="dash-role" class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold mb-4">Yükleniyor...</span>
-                
-                <ul class="space-y-2 text-sm text-slate-600">
-                    <li><strong class="text-slate-800">E-posta:</strong> <span id="dash-email">Yükleniyor...</span></li>
-                    <li><strong class="text-slate-800">Kayıt Durumu:</strong> <span class="text-emerald-500 font-bold"><i class="fa-solid fa-circle-check"></i> Aktif</span></li>
-                </ul>
-            </div>
+            <form id="edit-profile-form" class="hidden mt-4 pt-4 border-t border-slate-100 transition-all">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex justify-center sm:justify-start">
+                        <label for="edit-avatar" class="avatar-upload relative cursor-pointer group">
+                            <div id="edit-avatar-preview" class="w-20 h-20 rounded-full bg-white border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-blue-500">
+                                <img id="edit-avatar-img" src="https://via.placeholder.com/150?text=Profil" class="w-full h-full object-cover">
+                            </div>
+                            <div class="avatar-overlay absolute inset-0 bg-black/50 rounded-full opacity-0 flex flex-col items-center justify-center transition-opacity">
+                                <i class="fa-solid fa-camera text-white mb-1"></i>
+                                <span class="text-white text-[10px] font-bold">Değiştir</span>
+                            </div>
+                            <input type="file" id="edit-avatar" accept="image/png, image/jpeg, image/jpg" class="hidden">
+                        </label>
+                    </div>
+                    <div class="flex-1 flex flex-col justify-center">
+                        <input type="text" id="edit-name" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-blue-500 text-sm mb-2">
+                        <div class="flex gap-2">
+                            <button type="button" id="cancel-edit-btn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold py-2 rounded transition-colors">İptal</button>
+                            <button type="submit" id="save-edit-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 rounded transition-colors">Kaydet</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
 
-        <form id="edit-profile-form" class="bg-slate-50 p-6 rounded-xl border border-slate-200 hidden transition-all">
-            <h3 class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Profili Düzenle</h3>
+        <div class="bg-white p-0 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             
-            <div class="flex flex-col sm:flex-row gap-6">
-                <div class="flex justify-center sm:justify-start">
-                    <label for="edit-avatar" class="avatar-upload relative cursor-pointer group">
-                        <div id="edit-avatar-preview" class="w-32 h-32 rounded-full bg-white border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-blue-500">
-                            <img id="edit-avatar-img" src="https://via.placeholder.com/150?text=Profil" class="w-full h-full object-cover">
-                        </div>
-                        <div class="avatar-overlay absolute inset-0 bg-black/50 rounded-full opacity-0 flex flex-col items-center justify-center transition-opacity">
-                            <i class="fa-solid fa-camera text-white mb-1"></i>
-                            <span class="text-white text-xs font-bold">Değiştir</span>
-                        </div>
-                        <input type="file" id="edit-avatar" accept="image/png, image/jpeg, image/jpg" class="hidden">
-                    </label>
-                </div>
-
-                <div class="flex-1 flex flex-col justify-center">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">Adınız Soyadınız</label>
-                    <input type="text" id="edit-name" required class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500">
-                    <p class="text-xs text-slate-500 mt-2"><i class="fa-solid fa-circle-info text-blue-500"></i> Profil fotoğrafınızı veya adınızı değiştirip kaydedebilirsiniz.</p>
-                </div>
-            </div>
-
-            <div class="flex gap-3 mt-6">
-                <button type="button" id="cancel-edit-btn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-4 rounded-lg transition-colors">
-                    İptal Et
-                </button>
-                <button type="submit" id="save-edit-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
-                    Değişiklikleri Kaydet
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-users text-blue-500 mr-2"></i>Topluluk</h3>
+                <button id="open-create-post" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded-full transition-colors flex items-center gap-2 shadow-md shadow-blue-200">
+                    <i class="fa-solid fa-plus"></i> Gönderi Oluştur
                 </button>
             </div>
-        </form>
 
+            <div class="flex gap-2 p-4 border-b border-slate-100 overflow-x-auto hide-scrollbar">
+                <button class="feed-filter active px-4 py-1.5 rounded-full bg-slate-800 text-white text-sm font-semibold transition-colors" data-filter="all">Tümü</button>
+                <button class="feed-filter px-4 py-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm font-semibold transition-colors" data-filter="soru">Sorular</button>
+                <button class="feed-filter px-4 py-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm font-semibold transition-colors" data-filter="medya">Medya & Reels</button>
+            </div>
+
+            <div id="feed-list" class="divide-y divide-slate-100 bg-white">
+                <div class="p-8 text-center text-slate-400">
+                    <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+                    <p>Gönderiler yükleniyor...</p>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <div id="create-post-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl transform transition-transform scale-100">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800 text-lg">Yeni Paylaşım</h3>
+                <button id="close-post-modal" class="text-slate-400 hover:text-red-500 w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 transition-colors"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            
+            <form id="create-post-form" class="p-6 space-y-5">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Ne Paylaşmak İstiyorsun?</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="post_type" value="soru" class="peer hidden" checked>
+                            <div class="text-center p-3 border-2 border-slate-200 rounded-xl peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-all">
+                                <i class="fa-solid fa-circle-question text-xl mb-1 text-slate-400 peer-checked:text-blue-500"></i>
+                                <div class="font-bold text-sm text-slate-600 peer-checked:text-blue-700">Soru Sor</div>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="post_type" value="medya" class="peer hidden">
+                            <div class="text-center p-3 border-2 border-slate-200 rounded-xl peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-all">
+                                <i class="fa-solid fa-image text-xl mb-1 text-slate-400 peer-checked:text-blue-500"></i>
+                                <div class="font-bold text-sm text-slate-600 peer-checked:text-blue-700">Fotoğraf/Reels</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="media-upload-container" class="hidden animate-fade-in">
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Dosya Seç</label>
+                    <input type="file" id="post-media" accept="image/*,video/mp4" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Açıklama / Soru Detayı</label>
+                    <textarea id="post-text" required rows="4" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white resize-none transition-colors" placeholder="Düşüncelerini veya sorunu buraya yaz..."></textarea>
+                </div>
+                
+                <button type="submit" id="submit-post-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-200 transition-all">
+                    Paylaş
+                </button>
+            </form>
+        </div>
     </div>
 
     <script type="module" src="app.js"></script>
