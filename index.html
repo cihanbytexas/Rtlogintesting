@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Öz Yapı Beta | Üyelik Sistemi Testi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* Profil fotoğrafı yükleme animasyonu için */
+        .avatar-upload:hover .avatar-overlay { opacity: 1; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- GİRİŞ VE KAYIT KUTUSU -->
+    <div id="auth-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md transition-all duration-300">
+        <div class="text-center mb-8">
+            <h2 class="text-2xl font-bold text-slate-800"><i class="fa-solid fa-helmet-safety text-blue-600"></i> Öz Yapı Beta</h2>
+            <p class="text-sm text-slate-500 mt-2" id="auth-subtitle">Sisteme giriş yapın veya hesap oluşturun</p>
+        </div>
+
+        <!-- GİRİŞ FORMU -->
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">E-posta</label>
+                <input type="email" id="login-email" required class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="ornek@mail.com">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Şifre</label>
+                <input type="password" id="login-password" required class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="••••••••">
+            </div>
+            <button type="submit" id="login-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                Giriş Yap
+            </button>
+            <p class="text-center text-sm text-slate-600 mt-4">
+                Hesabın yok mu? <a href="#" id="show-register" class="text-blue-600 font-bold hover:underline">Hemen Kayıt Ol</a>
+            </p>
+        </form>
+
+        <!-- KAYIT FORMU (Başlangıçta Gizli) -->
+        <form id="register-form" class="space-y-4 hidden">
+            
+            <!-- PROFİL FOTOĞRAFI YÜKLEME ALANI -->
+            <div class="flex justify-center mb-4">
+                <label for="reg-avatar" class="avatar-upload relative cursor-pointer group">
+                    <div id="avatar-preview" class="w-24 h-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-blue-500">
+                        <i class="fa-solid fa-camera text-2xl text-slate-400 group-hover:text-blue-500 transition-colors"></i>
+                    </div>
+                    <div class="avatar-overlay absolute inset-0 bg-black/40 rounded-full opacity-0 flex items-center justify-center transition-opacity">
+                        <span class="text-white text-xs font-bold">Seç</span>
+                    </div>
+                    <input type="file" id="reg-avatar" accept="image/png, image/jpeg, image/jpg" class="hidden">
+                </label>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Ad Soyad</label>
+                <input type="text" id="reg-name" required class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Adınız Soyadınız">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Hesap Türü</label>
+                <select id="reg-role" required class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-700">
+                    <option value="Müşteri">Normal Müşteri</option>
+                    <option value="Usta">Usta (Boya/Tesisat)</option>
+                    <option value="Müteahhit">Müteahhit</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">E-posta</label>
+                <input type="email" id="reg-email" required class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="ornek@mail.com">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Şifre (En az 6 hane)</label>
+                <input type="password" id="reg-password" required minlength="6" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="••••••••">
+            </div>
+            <button type="submit" id="register-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                Kayıt Ol
+            </button>
+            <p class="text-center text-sm text-slate-600 mt-4">
+                Zaten üye misin? <a href="#" id="show-login" class="text-blue-600 font-bold hover:underline">Giriş Yap</a>
+            </p>
+        </form>
+    </div>
+
+    <!-- KULLANICI PANELİ (Giriş Yapınca Görünecek) -->
+    <div id="dashboard-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-2xl hidden">
+        <div class="flex justify-between items-center border-b pb-4 mb-6">
+            <h2 class="text-2xl font-bold text-slate-800">Hesabım</h2>
+            <button id="logout-btn" class="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-500 hover:text-white rounded-lg font-semibold transition-colors">
+                <i class="fa-solid fa-power-off"></i> Çıkış Yap
+            </button>
+        </div>
+        
+        <div class="bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+            
+            <!-- PANEL FOTOĞRAF GÖSTERİMİ -->
+            <div class="w-32 h-32 rounded-full bg-white border-4 border-white shadow-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                <img id="dash-avatar" src="https://via.placeholder.com/150?text=Profil" alt="Profil Fotoğrafı" class="w-full h-full object-cover">
+            </div>
+
+            <div class="flex-1 text-center sm:text-left">
+                <h3 id="dash-name" class="text-2xl font-bold text-slate-800 mb-1">Yükleniyor...</h3>
+                <span id="dash-role" class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold mb-4">Yükleniyor...</span>
+                
+                <ul class="space-y-2 text-sm text-slate-600">
+                    <li><strong class="text-slate-800">E-posta:</strong> <span id="dash-email">Yükleniyor...</span></li>
+                    <li><strong class="text-slate-800">Kayıt Durumu:</strong> <span class="text-emerald-500 font-bold"><i class="fa-solid fa-circle-check"></i> Aktif</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script dosyası bir modül olarak yükleniyor -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
