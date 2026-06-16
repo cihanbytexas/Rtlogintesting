@@ -48,6 +48,7 @@ const mediaUploadContainer = document.getElementById('media-upload-container');
 const postMediaInput = document.getElementById('post-media');
 const postTextInput = document.getElementById('post-text');
 const submitPostBtn = document.getElementById('submit-post-btn');
+const notificationBadge = document.getElementById('notification-badge');
 
 let currentFeedFilter = 'all';
 
@@ -72,7 +73,7 @@ function toggleAuthForms(activeForm) {
     activeForm.classList.remove('hidden');
 }
 
-// 1. KAYIT OLMA (SIGN UP)
+// 1. KAYIT OLMA
 registerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('reg-name').value;
@@ -258,8 +259,9 @@ async function checkSession() {
             document.getElementById('dash-role').innerText = userData.rol;
             document.getElementById('dash-avatar').src = userData.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.ad_soyad)}&background=1e3a8a&color=fff`;
         }
-        // Oturum açılınca akışı yükle
+        // Oturum açılınca akışı ve bildirimleri yükle
         loadFeed(currentFeedFilter);
+        checkNotifications();
     } else {
         currentUserSession = null;
         mainAppContainer.classList.add('hidden');
@@ -275,22 +277,44 @@ supabase.auth.onAuthStateChange((event) => {
 });
 
 // ==========================================
-// YENİ: TOPLULUK AKIŞI (FEED) MANTIĞI
+// BİLDİRİM KONTROL (KIRMIZI ZİL) MANTIĞI
+// ==========================================
+async function checkNotifications() {
+    if (!currentUserSession) return;
+    try {
+        const { count, error } = await supabase
+            .from('bildirimler')
+            .select('*', { count: 'exact', head: true })
+            .eq('alici_id', currentUserSession.user.id)
+            .eq('okundu', false);
+        
+        if (error) throw error;
+        
+        if (count > 0) {
+            notificationBadge.classList.remove('hidden');
+        } else {
+            notificationBadge.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error("Bildirim hatası:", error);
+    }
+}
+
+// ==========================================
+// TOPLULUK AKIŞI (FEED) MANTIĞI
 // ==========================================
 
-// Gönderi Tipi Seçimi (Radyo Butonları)
 postTypeRadios.forEach(radio => {
     radio.addEventListener('change', (e) => {
         if(e.target.value === 'medya') {
             mediaUploadContainer.classList.remove('hidden');
         } else {
             mediaUploadContainer.classList.add('hidden');
-            postMediaInput.value = ''; // Seçimi sıfırla
+            postMediaInput.value = ''; 
         }
     });
 });
 
-// Modal Aç/Kapat
 openCreatePostBtn.addEventListener('click', () => {
     createPostModal.classList.remove('hidden');
 });
@@ -301,7 +325,6 @@ closePostModalBtn.addEventListener('click', () => {
     mediaUploadContainer.classList.add('hidden');
 });
 
-// Yeni Gönderi Paylaşma
 createPostForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if(!currentUserSession) return;
@@ -316,7 +339,6 @@ createPostForm.addEventListener('submit', async (e) => {
     try {
         let finalMediaUrl = null;
 
-        // Eğer medya seçildiyse 'medya' bucket'ına yükle
         if (postType === 'medya' && file) {
             const ext = file.name.split('.').pop();
             const fileName = `post-${Date.now()}-${Math.random()}.${ext}`;
@@ -326,7 +348,6 @@ createPostForm.addEventListener('submit', async (e) => {
             finalMediaUrl = supabase.storage.from('medya').getPublicUrl(fileName).data.publicUrl;
         }
 
-        // Veritabanına Yaz
         const { error: dbError } = await supabase.from('gonderiler').insert([{
             user_id: currentUserSession.user.id,
             gonderi_tipi: postType,
@@ -340,7 +361,6 @@ createPostForm.addEventListener('submit', async (e) => {
         createPostForm.reset();
         mediaUploadContainer.classList.add('hidden');
         
-        // Akışı yenile
         loadFeed(currentFeedFilter);
         Swal.fire({ icon: 'success', title: 'Paylaşıldı!', timer: 1500, showConfirmButton: false });
 
@@ -352,7 +372,6 @@ createPostForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Akış Filtreleme Tıklamaları
 feedFilters.forEach(btn => {
     btn.addEventListener('click', (e) => {
         feedFilters.forEach(f => {
@@ -367,17 +386,23 @@ feedFilters.forEach(btn => {
     });
 });
 
-// Gönderileri Supabase'den Çek ve Ekrana Bas
 async function loadFeed(filterType) {
+    if (!currentUserSession) return;
+    
     feedList.innerHTML = '<div class="p-8 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><p>Yükleniyor...</p></div>';
 
     try {
-        // Gönderileri ve yazarların bilgilerini beraber çekiyoruz
+        // Gönderileri, yazarı, yorumları ve beğenileri BİR KERE de çekiyoruz
         let query = supabase
             .from('gonderiler')
             .select(`
                 *,
-                yazar:uyeler (ad_soyad, avatar_url, rol)
+                yazar:uyeler (ad_soyad, avatar_url, rol),
+                etkilesimler (id, user_id),
+                gonderi_yorumlari (
+                    id, metin, created_at, user_id,
+                    yazar:uyeler (ad_soyad, avatar_url, rol)
+                )
             `)
             .order('created_at', { ascending: false });
 
@@ -398,14 +423,40 @@ async function loadFeed(filterType) {
         posts.forEach(post => {
             const author = post.yazar || {};
             const avatar = author.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
-            
-            // Tarih Formatı (Örn: 2 saat önce)
             const dateStr = new Date(post.created_at).toLocaleDateString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
 
-            // Medya alanı
+            // Beğeni Hesaplamaları
+            const likesCount = post.etkilesimler ? post.etkilesimler.length : 0;
+            const isLikedByMe = post.etkilesimler ? post.etkilesimler.some(e => e.user_id === currentUserSession.user.id) : false;
+            const likeIconClass = isLikedByMe ? "fa-solid fa-heart text-red-500" : "fa-regular fa-heart";
+            const likeTextClass = isLikedByMe ? "text-red-500" : "text-slate-500";
+
+            // Yorum Hesaplamaları
+            const commentsCount = post.gonderi_yorumlari ? post.gonderi_yorumlari.length : 0;
+            
+            // Yorumları HTML olarak hazırla
+            let commentsHTML = '';
+            if (post.gonderi_yorumlari && commentsCount > 0) {
+                // Yorumları eskiden yeniye sıralayalım
+                const sortedComments = post.gonderi_yorumlari.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+                sortedComments.forEach(comment => {
+                    const cAuthor = comment.yazar || {};
+                    const cAvatar = cAuthor.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(cAuthor.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
+                    commentsHTML += `
+                        <div class="flex gap-2 items-start mt-3">
+                            <img src="${cAvatar}" class="w-6 h-6 rounded-full object-cover border border-slate-200 mt-1">
+                            <div class="bg-slate-100 px-3 py-2 rounded-xl flex-1">
+                                <span class="font-bold text-[12px] text-slate-800 mr-1">${cAuthor.ad_soyad || 'Kullanıcı'}</span>
+                                <span class="text-sm text-slate-700 whitespace-pre-wrap">${comment.metin}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Medya (Video/Resim)
             let mediaHTML = '';
             if (post.gonderi_tipi === 'medya' && post.medya_url) {
-                // Basit bir kontrol ile mp4 ise video etiketi basılabilir. Şimdilik görsel varsayıyoruz.
                 if(post.medya_url.endsWith('.mp4')) {
                     mediaHTML = `<video controls class="w-full h-auto max-h-96 object-cover bg-black mt-3 rounded-xl"><source src="${post.medya_url}" type="video/mp4"></video>`;
                 } else {
@@ -429,13 +480,29 @@ async function loadFeed(filterType) {
                     <div class="text-slate-700 text-sm whitespace-pre-wrap">${post.metin}</div>
                     ${mediaHTML}
                     
-                    <div class="flex items-center gap-6 mt-4 pt-4 border-t border-slate-100">
-                        <button class="flex items-center gap-2 text-slate-500 hover:text-red-500 transition-colors text-sm font-semibold">
-                            <i class="fa-regular fa-heart text-lg"></i> <span>Beğen</span>
+                    <!-- Etkileşim Butonları -->
+                    <div class="flex items-center gap-6 mt-4 pt-3 border-t border-slate-100">
+                        <button class="action-btn like-btn flex items-center gap-2 ${likeTextClass} hover:text-red-500 transition-colors text-sm font-semibold" data-post-id="${post.id}" data-author-id="${post.user_id}">
+                            <i class="${likeIconClass} text-lg pointer-events-none"></i> <span class="pointer-events-none">${likesCount > 0 ? likesCount : 'Beğen'}</span>
                         </button>
-                        <button class="flex items-center gap-2 text-slate-500 hover:text-blue-500 transition-colors text-sm font-semibold">
-                            <i class="fa-regular fa-comment text-lg"></i> <span>Yanıtla</span>
+                        <button class="action-btn comment-toggle-btn flex items-center gap-2 text-slate-500 hover:text-blue-500 transition-colors text-sm font-semibold" data-post-id="${post.id}">
+                            <i class="fa-regular fa-comment text-lg pointer-events-none"></i> <span class="pointer-events-none">${commentsCount > 0 ? commentsCount : 'Yanıtla'}</span>
                         </button>
+                    </div>
+
+                    <!-- Yorum Alanı (Başlangıçta Gizli) -->
+                    <div class="comment-section hidden mt-4 pt-2 border-t border-slate-100" id="comment-section-${post.id}">
+                        <!-- Mevcut Yorumlar -->
+                        <div class="mb-3 space-y-1">
+                            ${commentsHTML}
+                        </div>
+                        <!-- Yorum Yazma Formu -->
+                        <div class="flex gap-2">
+                            <input type="text" id="comment-input-${post.id}" class="flex-1 px-3 py-2 bg-slate-100 border border-transparent rounded-full focus:outline-none focus:border-blue-300 focus:bg-white text-sm transition-colors" placeholder="Yorum ekle...">
+                            <button class="action-btn submit-comment-btn w-9 h-9 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center transition-colors shadow-sm" data-post-id="${post.id}" data-author-id="${post.user_id}">
+                                <i class="fa-solid fa-paper-plane pointer-events-none text-xs"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -447,3 +514,100 @@ async function loadFeed(filterType) {
         feedList.innerHTML = `<div class="p-8 text-center text-red-500"><p>Gönderiler yüklenirken hata oluştu.</p></div>`;
     }
 }
+
+// ==========================================
+// LIKE VE YORUM İŞLEMLERİ (EVENT DELEGATION)
+// ==========================================
+feedList.addEventListener('click', async (e) => {
+    if (!currentUserSession) return;
+    
+    const target = e.target;
+
+    // 1. LİKE BUTONU TIKLAMASI
+    if (target.classList.contains('like-btn')) {
+        const postId = target.getAttribute('data-post-id');
+        const authorId = target.getAttribute('data-author-id');
+        
+        try {
+            // Önce beğeni var mı kontrol et
+            const { data: existingLike } = await supabase
+                .from('etkilesimler')
+                .select('id')
+                .eq('gonderi_id', postId)
+                .eq('user_id', currentUserSession.user.id)
+                .single();
+
+            if (existingLike) {
+                // Varsa SİL (Unlike)
+                await supabase.from('etkilesimler').delete().eq('id', existingLike.id);
+            } else {
+                // Yoksa EKLE (Like)
+                await supabase.from('etkilesimler').insert([{ gonderi_id: postId, user_id: currentUserSession.user.id, etkilesim_tipi: 'like' }]);
+                
+                // Kendi kendine bildirim atmasını engelle
+                if (authorId !== currentUserSession.user.id) {
+                    await supabase.from('bildirimler').insert([{
+                        alici_id: authorId,
+                        gonderen_id: currentUserSession.user.id,
+                        mesaj: 'Gönderini beğendi.',
+                        gonderi_id: postId
+                    }]);
+                }
+            }
+            // Arayüzü güncelle (Gelişmiş yapılarda sadece buton değişir, biz şimdilik listeyi yeniliyoruz)
+            loadFeed(currentFeedFilter);
+        } catch (err) {
+            console.error("Beğeni işlemi hatası:", err);
+        }
+    }
+
+    // 2. YORUM ALANINI AÇ/KAPAT
+    if (target.classList.contains('comment-toggle-btn')) {
+        const postId = target.getAttribute('data-post-id');
+        const commentSection = document.getElementById(`comment-section-${postId}`);
+        commentSection.classList.toggle('hidden');
+        if(!commentSection.classList.contains('hidden')) {
+            document.getElementById(`comment-input-${postId}`).focus();
+        }
+    }
+
+    // 3. YORUM GÖNDERME
+    if (target.classList.contains('submit-comment-btn')) {
+        const postId = target.getAttribute('data-post-id');
+        const authorId = target.getAttribute('data-author-id');
+        const inputEl = document.getElementById(`comment-input-${postId}`);
+        const commentText = inputEl.value.trim();
+
+        if (!commentText) return;
+
+        target.disabled = true;
+        target.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+        try {
+            // Yorumu Ekle
+            await supabase.from('gonderi_yorumlari').insert([{
+                gonderi_id: postId,
+                user_id: currentUserSession.user.id,
+                metin: commentText
+            }]);
+
+            // Kendi kendine bildirim atmasını engelle
+            if (authorId !== currentUserSession.user.id) {
+                await supabase.from('bildirimler').insert([{
+                    alici_id: authorId,
+                    gonderen_id: currentUserSession.user.id,
+                    mesaj: 'Gönderine yorum yaptı: ' + commentText.substring(0, 20) + '...',
+                    gonderi_id: postId
+                }]);
+            }
+
+            // Arayüzü güncelle
+            loadFeed(currentFeedFilter);
+        } catch (err) {
+            console.error("Yorum gönderme hatası:", err);
+            Swal.fire({ icon: 'error', title: 'Hata', text: 'Yorum gönderilemedi.' });
+            target.disabled = false;
+            target.innerHTML = '<i class="fa-solid fa-paper-plane text-xs"></i>';
+        }
+    }
+});
