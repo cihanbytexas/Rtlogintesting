@@ -16,7 +16,6 @@
 </head>
 <body class="bg-slate-100 min-h-screen flex flex-col items-center py-10 px-4">
 
-    <!-- GİRİŞ VE KAYIT KUTUSU -->
     <div id="auth-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md transition-all duration-300">
         <div class="text-center mb-8">
             <h2 class="text-2xl font-bold text-slate-800"><i class="fa-solid fa-helmet-safety text-blue-600"></i> Öz Yapı Beta</h2>
@@ -116,7 +115,6 @@
         </form>
     </div>
 
-    <!-- KULLANICI PANELİ VE TOPLULUK AKIŞI -->
     <div id="main-app-container" class="w-full max-w-2xl hidden space-y-6">
         
         <div id="dashboard-container" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -192,12 +190,10 @@
             </div>
 
             <div id="feed-list" class="space-y-6">
-                <!-- Dinamik İçerik -->
-            </div>
+                </div>
         </div>
     </div>
 
-    <!-- GÖNDERİ OLUŞTURMA MODALI -->
     <div id="create-post-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl transform transition-transform scale-100">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -242,7 +238,6 @@
         </div>
     </div>
 
-    <!-- BİLDİRİMLER MODALI -->
     <div id="notification-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex justify-end p-0 backdrop-blur-sm transition-opacity">
         <div class="bg-white w-full max-w-sm h-full shadow-2xl flex flex-col transform transition-transform duration-300">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -253,7 +248,6 @@
         </div>
     </div>
 
-    <!-- BEĞENENLERİ GÖRME MODALI -->
     <div id="likes-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
             <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -264,15 +258,13 @@
         </div>
     </div>
 
-    <!-- INSTA TARZI KULLANICI PROFİLİ MODALI -->
     <div id="user-profile-modal" class="fixed inset-0 bg-white z-[60] hidden flex-col transition-transform transform translate-x-full duration-300">
-        <div class="flex items-center px-4 py-3 border-b border-slate-200">
+        <div class="flex items-center px-4 py-3 border-b border-slate-200 bg-white sticky top-0 z-10">
             <button id="close-user-profile" class="text-slate-800 text-xl mr-4"><i class="fa-solid fa-arrow-left"></i></button>
             <h2 id="up-header-name" class="text-lg font-bold text-slate-800 flex-1">Kullanıcı</h2>
-            <i class="fa-solid fa-ellipsis-vertical text-slate-800"></i>
         </div>
         
-        <div class="p-4 relative">
+        <div class="p-4 border-b border-slate-100">
             <div class="flex items-center justify-between mb-4">
                 <img id="up-avatar" src="https://via.placeholder.com/150" class="w-20 h-20 rounded-full object-cover border border-slate-200 p-0.5">
                 <div class="flex flex-1 justify-center gap-6 text-center">
@@ -295,28 +287,26 @@
                 <span id="up-role" class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase mt-1 inline-block">Rol</span>
                 <p id="up-bio" class="text-sm text-slate-700 mt-1 whitespace-pre-wrap"></p>
             </div>
-            <!-- Takip Et Butonu -->
             <div class="mt-4 flex gap-2" id="up-action-buttons">
                 <button id="follow-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 rounded-lg text-sm transition-colors hidden">Takip Et</button>
                 <button id="unfollow-btn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-1.5 rounded-lg text-sm transition-colors hidden">Takipten Çık</button>
             </div>
         </div>
 
-        <div class="flex border-t border-slate-200 mt-2">
-            <div class="flex-1 flex justify-center py-3 border-b-2 border-slate-800 text-slate-800"><i class="fa-solid fa-table-cells text-xl"></i></div>
-            <div class="flex-1 flex justify-center py-3 text-slate-400"><i class="fa-solid fa-image text-xl"></i></div>
+        <div class="flex border-b border-slate-200 bg-white sticky top-[53px] z-10">
+            <button id="tab-grid" class="flex-1 py-3 border-b-2 border-slate-800 text-slate-800 flex justify-center transition-all"><i class="fa-solid fa-table-cells text-xl"></i></button>
+            <button id="tab-questions" class="flex-1 py-3 border-b-2 border-transparent text-slate-400 flex justify-center transition-all"><i class="fa-solid fa-circle-question text-xl"></i></button>
         </div>
 
         <div id="up-grid" class="flex-1 overflow-y-auto grid grid-cols-3 gap-0.5 bg-slate-100"></div>
+        <div id="up-questions-list" class="flex-1 overflow-y-auto hidden p-4 space-y-4 bg-slate-50"></div>
     </div>
 
-    <!-- TEKİL GÖNDERİ MODALI (YENİ) -->
     <div id="single-post-modal" class="fixed inset-0 bg-white z-[70] hidden flex-col transition-transform transform translate-x-full duration-300">
         <div class="flex items-center px-4 py-3 border-b border-slate-200 bg-white sticky top-0 z-10">
             <button id="close-single-post" class="text-slate-800 text-xl mr-4"><i class="fa-solid fa-arrow-left"></i></button>
             <h2 class="text-lg font-bold text-slate-800 flex-1">Gönderi</h2>
         </div>
-        <!-- Seçilen Gönderi Buraya Basılacak -->
         <div id="single-post-container" class="flex-1 overflow-y-auto p-4 bg-slate-100 space-y-6"></div>
     </div>
 
