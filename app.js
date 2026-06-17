@@ -55,9 +55,6 @@ const closeNotificationModalBtn = document.getElementById('close-notification-mo
 const notificationList = document.getElementById('notification-list');
 
 let currentFeedFilter = 'all';
-
-// --- YORUMA YANIT (REPLY) TAKİBİ ---
-// Kullanıcı bir yoruma yanıt vermek isterse bu objede tutacağız
 let activeReplyData = {}; 
 
 // --- AUTH & FORM GEÇİŞ EFEKTLERİ ---
@@ -190,10 +187,12 @@ editProfileBtn.addEventListener('click', () => {
     editAvatarImg.src = document.getElementById('dash-avatar').src;
     selectedUpdateAvatarFile = null;
 });
+
 cancelEditBtn.addEventListener('click', () => {
     editProfileForm.classList.add('hidden');
     dashboardView.classList.remove('hidden');
 });
+
 editAvatarInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -203,6 +202,7 @@ editAvatarInput.addEventListener('change', (e) => {
         reader.readAsDataURL(file);
     }
 });
+
 editProfileForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const newName = editNameInput.value;
@@ -295,10 +295,9 @@ notificationBtn.addEventListener('click', async () => {
     notificationList.innerHTML = '<div class="text-center text-slate-400 mt-10"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><p>Bildirimler yükleniyor...</p></div>';
     
     try {
-        // Bildirimleri ve kimin gönderdiğini çek
         const { data: notifications, error } = await supabase
             .from('bildirimler')
-            .select('*, gonderen:uyeler(ad_soyad, avatar_url)')
+            .select('*, gonderen:uyeler!gonderen_id(ad_soyad, avatar_url)')
             .eq('alici_id', currentUserSession.user.id)
             .order('created_at', { ascending: false })
             .limit(20);
@@ -338,14 +337,12 @@ notificationBtn.addEventListener('click', async () => {
 
 closeNotificationModalBtn.addEventListener('click', () => {
     notificationModal.classList.add('hidden');
-    checkNotificationsBadge(); // Kapattığında badge'i tekrar kontrol et
+    checkNotificationsBadge(); 
 });
 
-// Bildirime tıklayınca okundu işaretleme
 window.markNotificationAsRead = async (id) => {
     try {
         await supabase.from('bildirimler').update({ okundu: true }).eq('id', id);
-        // İstersen burada gönderiye de odaklanabilirsin. Şimdilik sadece bildirim panelini yeniliyoruz.
         notificationBtn.click(); 
     } catch (err) { console.error("Okundu hatası:", err); }
 };
@@ -468,7 +465,6 @@ async function loadFeed(filterType) {
             const likeIconClass = isLikedByMe ? "fa-solid fa-heart text-red-500" : "fa-regular fa-heart";
             const likeTextClass = isLikedByMe ? "text-red-500" : "text-slate-500";
 
-            // YORUMLARI İÇ İÇE (INSTA MANTIĞI) PARÇALAMA
             const allComments = post.gonderi_yorumlari || [];
             const topLevelComments = allComments.filter(c => !c.ust_yorum_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
             const replies = allComments.filter(c => c.ust_yorum_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
@@ -492,7 +488,6 @@ async function loadFeed(filterType) {
                             </div>
                 `;
 
-                // Bu yoruma ait yanıtları bul
                 const commentReplies = replies.filter(r => r.ust_yorum_id === comment.id);
                 commentReplies.forEach(reply => {
                     const rAuthor = reply.yazar || {};
@@ -510,7 +505,7 @@ async function loadFeed(filterType) {
                     `;
                 });
 
-                commentsHTML += `</div></div>`; // Kapatma etiketleri
+                commentsHTML += `</div></div>`; 
             });
 
             let mediaHTML = '';
@@ -522,7 +517,6 @@ async function loadFeed(filterType) {
                 }
             }
 
-            // GÖNDERİ KARTI (Yeni Tasarım - Card Style)
             const postHTML = `
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                     <div class="flex items-center gap-3 mb-3">
@@ -553,7 +547,6 @@ async function loadFeed(filterType) {
                             ${commentsHTML}
                         </div>
                         
-                        <!-- Yoruma Yanıt Verme Göstergesi -->
                         <div id="reply-indicator-${post.id}" class="hidden flex items-center justify-between bg-blue-50 text-blue-700 px-3 py-1.5 rounded-t-lg text-xs font-bold border border-blue-100 border-b-0">
                             <span><i class="fa-solid fa-reply mr-1"></i> <span id="reply-name-${post.id}"></span> kullanıcısına yanıt veriliyor</span>
                             <button class="cancel-reply-btn text-blue-500 hover:text-red-500" data-post-id="${post.id}"><i class="fa-solid fa-xmark"></i></button>
@@ -584,7 +577,6 @@ feedList.addEventListener('click', async (e) => {
     if (!currentUserSession) return;
     const target = e.target;
 
-    // 1. BEĞEN BUTONU
     if (target.classList.contains('like-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
@@ -602,7 +594,6 @@ feedList.addEventListener('click', async (e) => {
         } catch (err) {}
     }
 
-    // 2. YORUM ALANINI AÇ/KAPAT
     if (target.classList.contains('comment-toggle-btn')) {
         const postId = target.getAttribute('data-post-id');
         const commentSection = document.getElementById(`comment-section-${postId}`);
@@ -612,16 +603,13 @@ feedList.addEventListener('click', async (e) => {
         }
     }
 
-    // 3. YORUMA YANITLA (REPLY) BUTONU TIKLAMASI (YENİ)
     if (target.classList.contains('reply-to-comment-btn')) {
         const postId = target.getAttribute('data-post-id');
         const commentId = target.getAttribute('data-comment-id');
         const authorName = target.getAttribute('data-author-name');
         
-        // Yanıt verilecek yorumu hafızaya al
         activeReplyData[postId] = commentId;
         
-        // Arayüzü güncelle (Göstergeyi aç ve inputu odakla)
         const indicator = document.getElementById(`reply-indicator-${postId}`);
         const nameSpan = document.getElementById(`reply-name-${postId}`);
         const inputEl = document.getElementById(`comment-input-${postId}`);
@@ -632,19 +620,16 @@ feedList.addEventListener('click', async (e) => {
         inputEl.focus();
     }
 
-    // 4. YANITLAMAYI İPTAL ET (ÇARPI BUTONU)
     if (target.classList.contains('cancel-reply-btn') || target.closest('.cancel-reply-btn')) {
         const btn = target.classList.contains('cancel-reply-btn') ? target : target.closest('.cancel-reply-btn');
         const postId = btn.getAttribute('data-post-id');
         
-        // Hafızadan sil ve göstergeyi gizle
         delete activeReplyData[postId];
         const indicator = document.getElementById(`reply-indicator-${postId}`);
         indicator.classList.add('hidden');
         indicator.classList.remove('flex');
     }
 
-    // 5. YORUM GÖNDERME
     if (target.classList.contains('submit-comment-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
@@ -657,7 +642,6 @@ feedList.addEventListener('click', async (e) => {
         target.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
         try {
-            // Eğer bir yoruma yanıt veriliyorsa ID'yi al, yoksa null
             const ustYorumId = activeReplyData[postId] || null;
 
             await supabase.from('gonderi_yorumlari').insert([{
@@ -679,9 +663,7 @@ feedList.addEventListener('click', async (e) => {
                 }]);
             }
 
-            // İşlem bitince yanıt hafızasını temizle
             delete activeReplyData[postId];
-            
             loadFeed(currentFeedFilter);
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Hata', text: 'Yorum gönderilemedi.' });
