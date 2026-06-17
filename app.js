@@ -49,7 +49,6 @@ const notificationModal = document.getElementById('notification-modal');
 const closeNotificationModalBtn = document.getElementById('close-notification-modal');
 const notificationList = document.getElementById('notification-list');
 
-// DM (MESAJ) ELEMENTLERİ
 const messagesBtn = document.getElementById('messages-btn');
 const messagesBadge = document.getElementById('messages-badge');
 const messagesListModal = document.getElementById('messages-list-modal');
@@ -96,7 +95,7 @@ let activeReplyData = {};
 let selectedAvatarFile = null;
 let selectedUpdateAvatarFile = null;
 let currentlyViewingProfileId = null;
-let currentChatUserId = null; // DM İçin aktif sohbet edilen kişi
+let currentChatUserId = null; 
 let realtimeChannel = null;
 
 // --- UTILS ---
@@ -171,7 +170,38 @@ loginForm.addEventListener('submit', async (e) => {
     finally { btn.innerHTML = 'Giriş Yap'; btn.disabled = false; }
 });
 
-// ... (Şifre Sıfırlama ve Profil Düzenleme formları aynı) ...
+forgotPasswordForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('forgot-email').value;
+    const btn = document.getElementById('forgot-btn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gönderiliyor...';
+    btn.disabled = true;
+    try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+        if (error) throw error;
+        Swal.fire({ icon: 'success', title: 'Gönderildi', text: 'Bağlantı iletildi.' });
+        forgotPasswordForm.reset();
+        toggleAuthForms(loginForm);
+    } catch (error) { Swal.fire({ icon: 'error', title: 'Hata', text: error.message }); }
+    finally { btn.innerHTML = 'Gönder'; btn.disabled = false; }
+});
+
+resetPasswordForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newPassword = document.getElementById('new-password').value;
+    const btn = document.getElementById('reset-btn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Güncelleniyor...';
+    btn.disabled = true;
+    try {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        if (error) throw error;
+        Swal.fire({ icon: 'success', title: 'Başarılı', text: 'Şifre güncellendi!', timer: 1500, showConfirmButton: false });
+        resetPasswordForm.reset();
+        checkSession();
+    } catch (error) { Swal.fire({ icon: 'error', title: 'Hata', text: error.message }); }
+    finally { btn.innerHTML = 'Güncelle'; btn.disabled = false; }
+});
+
 editProfileBtn.addEventListener('click', () => {
     dashboardView.classList.add('hidden'); editProfileForm.classList.remove('hidden');
     editNameInput.value = document.getElementById('dash-name').innerText;
@@ -220,7 +250,7 @@ logoutBtn.addEventListener('click', async () => {
     mainAppContainer.classList.add('hidden'); authContainer.classList.remove('hidden');
 });
 
-// REALTIME (CANLI YAYIN - GÖNDERİ, BİLDİRİM VE MESAJLAR İÇİN)
+// --- CANLI YAYIN (REALTIME) ---
 function setupRealtime() {
     if (realtimeChannel) return;
     realtimeChannel = supabase.channel('oz-yapi-realtime')
@@ -239,14 +269,12 @@ function setupRealtime() {
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mesajlar' }, (payload) => {
             if (payload.new.alici_id === currentUserSession?.user?.id) {
-                // Eğer sohbet ekranı o kişiyle açıksa direkt ekrana bas ve okundu yap
                 if (currentChatUserId === payload.new.gonderen_id && !chatModal.classList.contains('hidden')) {
-                    appendMessageToUI(payload.new, false); // false = ben göndermedim (gri balon)
+                    appendMessageToUI(payload.new, false); 
                     supabase.from('mesajlar').update({okundu: true}).eq('id', payload.new.id).then(()=>{});
                 } else {
-                    // Chat kapalıysa veya başkasıyla açıkken mesaj geldiyse zili yak
                     checkMessagesBadge();
-                    if (!messagesListModal.classList.contains('hidden')) { loadConversations(); }
+                    if (!messagesListModal.classList.contains('hidden')) loadConversations();
                 }
             }
         })
@@ -270,11 +298,11 @@ async function checkSession() {
                 document.getElementById('dash-my-profile-trigger').setAttribute('data-user-id', session.user.id);
                 document.getElementById('dash-name').setAttribute('data-user-id', session.user.id);
             }
-        } catch (e) { console.error("Kullanıcı verisi hatası", e); }
+        } catch (e) {}
         
         loadFeed(currentFeedFilter);
         checkNotificationsBadge();
-        checkMessagesBadge(); // Yeni!
+        checkMessagesBadge();
         setupRealtime();
     } else {
         currentUserSession = null;
@@ -330,9 +358,7 @@ window.handleNotificationClick = async (notificationId, postId, senderId) => {
     else if (senderId && senderId !== 'null') openUserProfile(senderId);
 };
 
-// ==========================================
-// YENİ: MESAJLAŞMA (DM) SİSTEMİ
-// ==========================================
+// --- MESAJLAŞMA (DM) SİSTEMİ ---
 async function checkMessagesBadge() {
     if (!currentUserSession) return;
     try {
@@ -355,142 +381,112 @@ closeMessagesListModalBtn.addEventListener('click', () => {
 async function loadConversations() {
     conversationsList.innerHTML = '<div class="text-center text-slate-400 mt-10"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i></div>';
     try {
-        // Hem gönderdiğimiz hem aldığımız mesajları çek
-        const { data: msgs, error } = await supabase
-            .from('mesajlar')
-            .select('*, gonderen:uyeler!gonderen_id(id, ad_soyad, avatar_url), alici:uyeler!alici_id(id, ad_soyad, avatar_url)')
-            .or(`gonderen_id.eq.${currentUserSession.user.id},alici_id.eq.${currentUserSession.user.id}`)
-            .order('created_at', { ascending: false });
+        const { data: msgs, error } = await supabase.from('mesajlar').select('*, gonderen:uyeler!gonderen_id(id, ad_soyad, avatar_url), alici:uyeler!alici_id(id, ad_soyad, avatar_url)').or(`gonderen_id.eq.${currentUserSession.user.id},alici_id.eq.${currentUserSession.user.id}`).order('created_at', { ascending: false });
+        if (!msgs || msgs.length === 0) { conversationsList.innerHTML = '<p class="text-center mt-10 text-slate-500">Mesaj kutunuz boş.</p>'; return; }
 
-        if (error) throw error;
-        if (!msgs || msgs.length === 0) { conversationsList.innerHTML = '<p class="text-center mt-10 text-slate-500">Henüz mesajlaşmanız yok.</p>'; return; }
-
-        // Mesajları kişilere göre grupla (sadece en son mesaj kalsın)
         const convos = {};
         msgs.forEach(m => {
             const isMeSender = m.gonderen_id === currentUserSession.user.id;
             const otherUser = isMeSender ? m.alici : m.gonderen;
             if (!convos[otherUser.id]) {
-                convos[otherUser.id] = {
-                    user: otherUser,
-                    lastMsg: m.metin,
-                    date: new Date(m.created_at),
-                    isUnread: !isMeSender && !m.okundu,
-                    senderLabel: isMeSender ? 'Sen: ' : ''
-                };
+                convos[otherUser.id] = { user: otherUser, lastMsg: m.metin, date: new Date(m.created_at), isUnread: !isMeSender && !m.okundu, senderLabel: isMeSender ? 'Sen: ' : '' };
             }
         });
 
         conversationsList.innerHTML = '';
         Object.values(convos).forEach(c => {
             const avatar = c.user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.user.ad_soyad)}`;
-            const unreadDot = c.isUnread ? `<span class="w-2.5 h-2.5 bg-blue-500 rounded-full flex-shrink-0"></span>` : '';
-            const bgClass = c.isUnread ? 'bg-blue-50' : 'bg-white';
+            const bgClass = c.isUnread ? 'bg-blue-50 border-blue-100' : 'bg-white border-white';
+            const textWeight = c.isUnread ? 'font-bold text-slate-800' : 'font-normal text-slate-500';
             
             conversationsList.insertAdjacentHTML('beforeend', `
-                <div class="p-3 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-slate-100 transition-colors border border-slate-100 ${bgClass}" onclick="openChat('${c.user.id}', '${c.user.ad_soyad}', '${avatar}')">
+                <div class="p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors border-b ${bgClass}" onclick="openChat('${c.user.id}', '${c.user.ad_soyad}', '${avatar}')">
                     <img src="${avatar}" class="w-12 h-12 rounded-full object-cover flex-shrink-0 border border-slate-200">
                     <div class="flex-1 overflow-hidden">
-                        <div class="font-bold text-sm text-slate-800">${c.user.ad_soyad}</div>
-                        <div class="text-xs text-slate-500 truncate mt-0.5">${c.senderLabel}${c.lastMsg}</div>
+                        <div class="font-bold text-[14px] text-slate-800">${c.user.ad_soyad}</div>
+                        <div class="text-[13px] truncate mt-0.5 ${textWeight}">${c.senderLabel}${c.lastMsg}</div>
                     </div>
-                    ${unreadDot}
+                    ${c.isUnread ? '<span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>' : ''}
                 </div>
             `);
         });
-
-    } catch (error) { console.error(error); conversationsList.innerHTML = '<p class="text-center text-red-500 mt-10">Yüklenemedi.</p>'; }
+    } catch (error) {}
 }
 
-// SOHBET (CHAT) PENCERESİNİ AÇMA
 window.openChat = async (targetId, targetName, targetAvatar) => {
     currentChatUserId = targetId;
-    chatUserName.innerText = targetName;
-    chatUserAvatar.src = targetAvatar;
-    chatUserAvatar.setAttribute('data-user-id', targetId);
-    chatUserName.setAttribute('data-user-id', targetId);
+    chatUserName.innerText = targetName; chatUserAvatar.src = targetAvatar;
+    chatUserAvatar.setAttribute('data-user-id', targetId); chatUserName.setAttribute('data-user-id', targetId);
     
-    chatModal.classList.remove('hidden');
-    setTimeout(() => chatModal.classList.remove('translate-x-full'), 10);
+    chatModal.classList.remove('hidden'); setTimeout(() => chatModal.classList.remove('translate-x-full'), 10);
     chatHistory.innerHTML = '<div class="flex-1 flex items-center justify-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-400"></i></div>';
 
     try {
-        // Okunmamışları okundu yap
         await supabase.from('mesajlar').update({ okundu: true }).eq('alici_id', currentUserSession.user.id).eq('gonderen_id', targetId).eq('okundu', false);
         checkMessagesBadge();
-        if(!messagesListModal.classList.contains('hidden')) loadConversations(); // Listeyi arkadan güncelle
+        if(!messagesListModal.classList.contains('hidden')) loadConversations();
 
-        // Geçmişi çek (Eskiden yeniye sıralı)
-        const { data: history } = await supabase
-            .from('mesajlar')
-            .select('*')
-            .or(`and(gonderen_id.eq.${currentUserSession.user.id},alici_id.eq.${targetId}),and(gonderen_id.eq.${targetId},alici_id.eq.${currentUserSession.user.id})`)
-            .order('created_at', { ascending: true });
+        const { data: history } = await supabase.from('mesajlar').select('*').or(`and(gonderen_id.eq.${currentUserSession.user.id},alici_id.eq.${targetId}),and(gonderen_id.eq.${targetId},alici_id.eq.${currentUserSession.user.id})`).order('created_at', { ascending: true });
 
         chatHistory.innerHTML = '';
         if (history && history.length > 0) {
             history.forEach(msg => appendMessageToUI(msg, msg.gonderen_id === currentUserSession.user.id));
         } else {
-            chatHistory.innerHTML = '<p class="text-center text-slate-400 mt-10 text-sm">İlk mesajı sen gönder!</p>';
+            chatHistory.innerHTML = '<p class="empty-chat-msg text-center text-slate-400 mt-10 text-sm">İlk mesajı sen gönder!</p>';
         }
         scrollToChatBottom();
-
-    } catch (error) { chatHistory.innerHTML = '<p class="text-center text-red-500 mt-10">Mesajlar yüklenemedi.</p>'; }
+    } catch (error) {}
 };
 
+// DÜZELTME: SİLİNME HATASI GİDERİLDİ (Sadece empty-chat-msg varsa silinir) & TASARIM INSTA YAPILDI
 function appendMessageToUI(msg, isMine) {
-    // Eğer ekranda "İlk mesajı sen gönder" yazısı varsa onu temizle
-    if (chatHistory.querySelector('.text-slate-400')) chatHistory.innerHTML = '';
+    const emptyMsg = chatHistory.querySelector('.empty-chat-msg');
+    if (emptyMsg) emptyMsg.remove();
 
     const timeStr = new Date(msg.created_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
     
-    // Mesaj baloncuğu tasarımı (Benden giden Mavi sağa, karşıdan gelen Gri sola)
     if (isMine) {
         chatHistory.insertAdjacentHTML('beforeend', `
-            <div class="flex flex-col items-end w-full animate-fade-in">
-                <div class="bg-blue-600 text-white px-4 py-2 rounded-2xl rounded-br-sm max-w-[75%] text-[15px] shadow-sm whitespace-pre-wrap">${msg.metin}</div>
+            <div class="flex flex-col items-end w-full animate-fade-in mb-2">
+                <div class="bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm max-w-[75%] text-[14px] shadow-sm whitespace-pre-wrap leading-relaxed">${msg.metin}</div>
                 <span class="text-[10px] text-slate-400 mt-1 mr-1">${timeStr}</span>
             </div>
         `);
     } else {
         chatHistory.insertAdjacentHTML('beforeend', `
-            <div class="flex flex-col items-start w-full animate-fade-in">
-                <div class="bg-white border border-slate-200 text-slate-800 px-4 py-2 rounded-2xl rounded-bl-sm max-w-[75%] text-[15px] shadow-sm whitespace-pre-wrap">${msg.metin}</div>
-                <span class="text-[10px] text-slate-400 mt-1 ml-1">${timeStr}</span>
+            <div class="flex items-end gap-2 w-full animate-fade-in mb-2">
+                <img src="${chatUserAvatar.src}" class="w-7 h-7 rounded-full object-cover mb-4 border border-slate-200">
+                <div class="flex flex-col items-start w-full">
+                    <div class="bg-slate-200 border border-slate-200 text-slate-800 px-4 py-2.5 rounded-2xl rounded-bl-sm max-w-[75%] text-[14px] shadow-sm whitespace-pre-wrap leading-relaxed">${msg.metin}</div>
+                    <span class="text-[10px] text-slate-400 mt-1 ml-1">${timeStr}</span>
+                </div>
             </div>
         `);
     }
     scrollToChatBottom();
 }
 
-function scrollToChatBottom() {
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-}
+function scrollToChatBottom() { chatHistory.scrollTop = chatHistory.scrollHeight; }
 
 closeChatBtn.addEventListener('click', () => {
     currentChatUserId = null;
-    chatModal.classList.add('translate-x-full');
-    setTimeout(() => chatModal.classList.add('hidden'), 300);
+    chatModal.classList.add('translate-x-full'); setTimeout(() => chatModal.classList.add('hidden'), 300);
 });
 
-// Mesaj Gönderme Formu Submit
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!currentChatUserId || !chatInput.value.trim()) return;
 
     const text = chatInput.value.trim();
-    chatInput.value = ''; // İnputu anında temizle
+    chatInput.value = ''; 
     
-    // Optimistic UI (Ekrana anında bas)
     const tempMsg = { metin: text, created_at: new Date().toISOString() };
     appendMessageToUI(tempMsg, true);
 
-    // Arka planda DB'ye yaz
     try {
         await supabase.from('mesajlar').insert([{ gonderen_id: currentUserSession.user.id, alici_id: currentChatUserId, metin: text }]);
-        // Liste açıksa güncelle (En üste çıksın diye)
         if(!messagesListModal.classList.contains('hidden')) loadConversations();
-    } catch (err) { console.error("Mesaj gönderilemedi"); }
+    } catch (err) {}
 });
 
 // --- GÖNDERİ OLUŞTURMA ---
@@ -593,9 +589,19 @@ function generatePostHTML(post, isSingleView = false) {
         commentsHTML += '</div></div>';
     });
 
+    // MEDYA ALANI (Çift Tıklama İçin relative eklendi)
     let mediaHTML = '';
     if (post.gonderi_tipi === 'medya' && post.medya_url) {
-        mediaHTML = post.medya_url.endsWith('.mp4') ? `<video controls class="w-full h-auto max-h-96 object-cover bg-black mt-3 rounded-xl pointer-events-auto"><source src="${post.medya_url}"></video>` : `<img src="${post.medya_url}" class="w-full h-auto max-h-96 object-cover bg-slate-50 mt-3 rounded-xl border border-slate-100 pointer-events-auto">`;
+        if (post.medya_url.endsWith('.mp4')) {
+            mediaHTML = `<video controls class="w-full h-auto max-h-96 object-cover bg-black mt-3 rounded-xl pointer-events-auto"><source src="${post.medya_url}"></video>`;
+        } else {
+            mediaHTML = `
+                <div class="relative mt-3 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
+                    <img src="${post.medya_url}" class="post-media-item w-full h-auto max-h-96 object-cover pointer-events-auto cursor-pointer" data-post-id="${post.id}" data-author-id="${post.user_id}">
+                    <i class="fa-solid fa-heart absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-6xl opacity-0 pointer-events-none drop-shadow-md z-10" id="big-heart-${post.id}"></i>
+                </div>
+            `;
+        }
     }
 
     return `
@@ -661,6 +667,7 @@ document.addEventListener('click', async (e) => {
     if (!currentUserSession) return;
     const target = e.target;
 
+    // BEĞENME (Anlık Değişim)
     if (target.classList.contains('like-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
@@ -674,7 +681,7 @@ document.addEventListener('click', async (e) => {
             countSpan.innerText = currentCount > 1 ? currentCount - 1 : 'Beğen';
         } else {
             icon.className = "fa-solid fa-heart text-red-500"; target.classList.replace('text-slate-500', 'text-red-500');
-            countSpan.innerText = currentCount === 0 ? 1 : currentCount + 1;
+            countSpan.innerText = isNaN(currentCount) || currentCount === 0 ? 1 : currentCount + 1;
         }
 
         try {
@@ -754,6 +761,44 @@ document.addEventListener('click', async (e) => {
     }
 });
 
+// YENİ: ÇİFT TIKLA BEĞENME (Insta Mantığı)
+document.addEventListener('dblclick', async (e) => {
+    if (!currentUserSession) return;
+    const target = e.target;
+    
+    if (target.classList.contains('post-media-item')) {
+        const postId = target.getAttribute('data-post-id');
+        const authorId = target.getAttribute('data-author-id');
+        
+        // Animasyonu Tetikle
+        const bigHeart = document.getElementById(`big-heart-${postId}`);
+        if (bigHeart) {
+            bigHeart.classList.remove('heart-pop');
+            void bigHeart.offsetWidth; // Reflow tetikle
+            bigHeart.classList.add('heart-pop');
+        }
+
+        // Beğeniyi Ekle (Eğer zaten beğenilmemişse)
+        const icon = document.getElementById(`like-icon-${postId}`);
+        const countSpan = document.getElementById(`like-count-${postId}`);
+        const isLiked = icon.classList.contains('fa-solid');
+        
+        if (!isLiked) {
+            let currentCount = parseInt(countSpan.innerText) || 0;
+            icon.className = "fa-solid fa-heart text-red-500";
+            document.querySelector(`.like-btn[data-post-id="${postId}"]`).classList.replace('text-slate-500', 'text-red-500');
+            countSpan.innerText = isNaN(currentCount) || currentCount === 0 ? 1 : currentCount + 1;
+
+            try {
+                await supabase.from('etkilesimler').insert([{ gonderi_id: postId, user_id: currentUserSession.user.id, etkilesim_tipi: 'like' }]);
+                if (authorId !== currentUserSession.user.id) {
+                    await supabase.from('bildirimler').insert([{ alici_id: authorId, gonderen_id: currentUserSession.user.id, mesaj: 'Gönderini beğendi.', gonderi_id: postId }]);
+                }
+            } catch (err) {}
+        }
+    }
+});
+
 // --- LONG PRESS BEĞENENLER ---
 let timer;
 ['mousedown', 'touchstart'].forEach(e => document.addEventListener(e, (evt) => {
@@ -795,7 +840,6 @@ window.openUserProfile = async (uId) => {
         if (uId === currentUserSession.user.id) { 
             followBtn.classList.add('hidden'); unfollowBtn.classList.add('hidden'); messageUserBtn.classList.add('hidden');
         } else {
-            // Profilde Mesaj Atma Butonu Aktif Ediliyor
             messageUserBtn.classList.remove('hidden');
             messageUserBtn.onclick = () => {
                 userProfileModal.classList.add('translate-x-full');
