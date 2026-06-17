@@ -59,6 +59,8 @@ const closeChatBtn = document.getElementById('close-chat-btn');
 const chatHistory = document.getElementById('chat-history');
 const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
+const chatMediaInput = document.getElementById('chat-media-input');
+const chatTypingIndicator = document.getElementById('chat-typing-indicator');
 const chatUserAvatar = document.getElementById('chat-user-avatar');
 const chatUserName = document.getElementById('chat-user-name');
 const messageUserBtn = document.getElementById('message-user-btn');
@@ -97,6 +99,8 @@ let selectedUpdateAvatarFile = null;
 let currentlyViewingProfileId = null;
 let currentChatUserId = null; 
 let realtimeChannel = null;
+let chatBroadcastChannel = null; // YAZIYOR... GÖSTERGESİ İÇİN KANAL
+let typingTimeout;
 
 // --- UTILS ---
 function toggleAuthForms(activeForm) {
@@ -246,11 +250,12 @@ editProfileForm.addEventListener('submit', async (e) => {
 
 logoutBtn.addEventListener('click', async () => {
     if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+    if (chatBroadcastChannel) supabase.removeChannel(chatBroadcastChannel);
     await supabase.auth.signOut();
     mainAppContainer.classList.add('hidden'); authContainer.classList.remove('hidden');
 });
 
-// --- CANLI YAYIN (REALTIME) ---
+// --- CANLI YAYIN (REALTIME) VE YAZIYOR... SİSTEMİ ---
 function setupRealtime() {
     if (realtimeChannel) return;
     realtimeChannel = supabase.channel('oz-yapi-realtime')
@@ -267,18 +272,56 @@ function setupRealtime() {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bildirimler' }, (payload) => {
             if (payload.new.alici_id === currentUserSession?.user?.id) notificationBadge.classList.remove('hidden');
         })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mesajlar' }, (payload) => {
-            if (payload.new.alici_id === currentUserSession?.user?.id) {
-                if (currentChatUserId === payload.new.gonderen_id && !chatModal.classList.contains('hidden')) {
-                    appendMessageToUI(payload.new, false); 
-                    supabase.from('mesajlar').update({okundu: true}).eq('id', payload.new.id).then(()=>{});
-                } else {
-                    checkMessagesBadge();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'mesajlar' }, (payload) => {
+            // YENİ/SİLİNEN/GÜNCELLENEN MESAJ İZLEME
+            const isRelatedToMe = payload.new?.alici_id === currentUserSession?.user?.id || payload.new?.gonderen_id === currentUserSession?.user?.id || payload.old?.gonderen_id === currentUserSession?.user?.id;
+            
+            if (isRelatedToMe) {
+                const otherUserId = (payload.new?.gonderen_id === currentUserSession?.user?.id) ? payload.new?.alici_id : (payload.new?.gonderen_id || payload.old?.alici_id);
+                
+                if (payload.eventType === 'INSERT') {
+                    // Chat penceresi açıksa ve o kişiyle konuşuyorsam
+                    if (currentChatUserId === payload.new.gonderen_id || currentChatUserId === payload.new.alici_id) {
+                        const isMine = payload.new.gonderen_id === currentUserSession.user.id;
+                        appendMessageToUI(payload.new, isMine);
+                        if (!isMine) supabase.from('mesajlar').update({okundu: true}).eq('id', payload.new.id).then(()=>{}); // Okundu işaretle
+                    } else if (payload.new.alici_id === currentUserSession.user.id) {
+                        checkMessagesBadge();
+                        if (!messagesListModal.classList.contains('hidden')) loadConversations();
+                    }
+                } 
+                else if (payload.eventType === 'UPDATE') {
+                    const bubble = document.getElementById(`msg-wrapper-${payload.new.id}`);
+                    if (bubble) {
+                        const heart = bubble.querySelector('.msg-heart');
+                        bubble.querySelector('.msg-bubble').setAttribute('data-is-liked', payload.new.begendi.toString());
+                        if (payload.new.begendi) heart.classList.remove('hidden'); else heart.classList.add('hidden');
+
+                        const readIcon = bubble.querySelector('.msg-read-status');
+                        if (readIcon && payload.new.okundu) readIcon.className = 'msg-read-status fa-solid fa-check-double text-blue-500 ml-1';
+                    }
+                    if (!messagesListModal.classList.contains('hidden')) loadConversations();
+                } 
+                else if (payload.eventType === 'DELETE') {
+                    const bubble = document.getElementById(`msg-wrapper-${payload.old.id}`);
+                    if(bubble) bubble.remove();
                     if (!messagesListModal.classList.contains('hidden')) loadConversations();
                 }
             }
         })
         .subscribe();
+
+    // "Yazıyor..." Bildirimi İçin İkinci Kanal
+    if(!chatBroadcastChannel) {
+        chatBroadcastChannel = supabase.channel('chat-typing');
+        chatBroadcastChannel.on('broadcast', { event: 'typing' }, payload => {
+            if (payload.payload.to === currentUserSession.user.id && payload.payload.from === currentChatUserId && !chatModal.classList.contains('hidden')) {
+                chatTypingIndicator.classList.remove('hidden');
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => chatTypingIndicator.classList.add('hidden'), 2000);
+            }
+        }).subscribe();
+    }
 }
 
 async function checkSession() {
@@ -307,6 +350,7 @@ async function checkSession() {
     } else {
         currentUserSession = null;
         if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
+        if (chatBroadcastChannel) { supabase.removeChannel(chatBroadcastChannel); chatBroadcastChannel = null; }
         mainAppContainer.classList.add('hidden'); authContainer.classList.remove('hidden');
         toggleAuthForms(loginForm);
     }
@@ -390,7 +434,7 @@ async function loadConversations() {
             const isMeSender = m.gonderen_id === currentUserSession.user.id;
             const otherUser = isMeSender ? m.alici : m.gonderen;
             if (!convos[otherUser.id]) {
-                convos[otherUser.id] = { user: otherUser, lastMsg: m.metin, date: new Date(m.created_at), isUnread: !isMeSender && !m.okundu, senderLabel: isMeSender ? 'Sen: ' : '' };
+                convos[otherUser.id] = { user: otherUser, lastMsg: m.metin || '📷 Görsel', date: new Date(m.created_at), isUnread: !isMeSender && !m.okundu, senderLabel: isMeSender ? 'Sen: ' : '' };
             }
         });
 
@@ -427,7 +471,7 @@ window.openChat = async (targetId, targetName, targetAvatar) => {
         checkMessagesBadge();
         if(!messagesListModal.classList.contains('hidden')) loadConversations();
 
-        // KUSURSUZ .in() MANTIĞI: (Böylece history eksiksiz çekilir)
+        // KUSURSUZ .in() MANTIĞI: (Geçmişi eksiksiz çeker)
         const { data: history, error } = await supabase
             .from('mesajlar')
             .select('*')
@@ -449,26 +493,40 @@ window.openChat = async (targetId, targetName, targetAvatar) => {
     }
 };
 
-// DÜZELTME: Mesajların üst üste binmesi / silinmesi çözüldü
+// DÜZELTME: Mesajların üst üste binmesi çözüldü, Görüntü atma ve Beğeni/Okundu ikonları eklendi
 function appendMessageToUI(msg, isMine) {
     const emptyMsg = chatHistory.querySelector('.empty-chat-msg');
     if (emptyMsg) emptyMsg.remove();
 
     const timeStr = new Date(msg.created_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+    const mediaHtml = msg.medya_url ? `<img src="${msg.medya_url}" class="w-full max-w-[200px] h-auto rounded-lg mb-1 pointer-events-none">` : '';
+    const textHtml = (msg.metin && msg.metin !== '📷 Görsel') ? `<div class="whitespace-pre-wrap leading-relaxed">${msg.metin}</div>` : '';
     
+    // Görüldü Tiki (Sadece benim mesajlarımda sağ altta)
+    const readHtml = isMine ? `<i class="msg-read-status fa-solid ${msg.okundu ? 'fa-check-double text-blue-500' : 'fa-check text-slate-400'} ml-1"></i>` : '';
+    const heartClass = msg.begendi ? '' : 'hidden';
+
     if (isMine) {
         chatHistory.insertAdjacentHTML('beforeend', `
-            <div class="flex flex-col items-end w-full animate-fade-in mb-2">
-                <div class="bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm max-w-[75%] text-[14px] shadow-sm whitespace-pre-wrap leading-relaxed">${msg.metin}</div>
-                <span class="text-[10px] text-slate-400 mt-1 mr-1">${timeStr}</span>
+            <div class="flex flex-col items-end w-full animate-fade-in mb-3" id="msg-wrapper-${msg.id}">
+                <div class="msg-bubble relative bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm max-w-[75%] text-[14px] shadow-sm cursor-pointer select-none" data-msg-id="${msg.id}" data-is-mine="true" data-is-liked="${!!msg.begendi}">
+                    ${mediaHtml}
+                    ${textHtml}
+                    <div class="msg-heart absolute -bottom-2 -left-2 bg-white rounded-full p-1 shadow border border-slate-100 flex items-center justify-center ${heartClass}"><i class="fa-solid fa-heart text-red-500 text-[10px]"></i></div>
+                </div>
+                <div class="flex items-center text-[10px] text-slate-400 mt-1 mr-1"><span>${timeStr}</span>${readHtml}</div>
             </div>
         `);
     } else {
         chatHistory.insertAdjacentHTML('beforeend', `
-            <div class="flex items-end gap-2 w-full animate-fade-in mb-2">
+            <div class="flex items-end gap-2 w-full animate-fade-in mb-3" id="msg-wrapper-${msg.id}">
                 <img src="${chatUserAvatar.src}" class="w-7 h-7 rounded-full object-cover mb-4 border border-slate-200">
                 <div class="flex flex-col items-start w-full">
-                    <div class="bg-slate-200 border border-slate-200 text-slate-800 px-4 py-2.5 rounded-2xl rounded-bl-sm max-w-[75%] text-[14px] shadow-sm whitespace-pre-wrap leading-relaxed">${msg.metin}</div>
+                    <div class="msg-bubble relative bg-white border border-slate-200 text-slate-800 px-4 py-2.5 rounded-2xl rounded-bl-sm max-w-[75%] text-[14px] shadow-sm cursor-pointer select-none" data-msg-id="${msg.id}" data-is-mine="false" data-is-liked="${!!msg.begendi}">
+                        ${mediaHtml}
+                        ${textHtml}
+                        <div class="msg-heart absolute -bottom-2 -right-2 bg-white rounded-full p-1 shadow border border-slate-100 flex items-center justify-center ${heartClass}"><i class="fa-solid fa-heart text-red-500 text-[10px]"></i></div>
+                    </div>
                     <span class="text-[10px] text-slate-400 mt-1 ml-1">${timeStr}</span>
                 </div>
             </div>
@@ -484,25 +542,95 @@ closeChatBtn.addEventListener('click', () => {
     chatModal.classList.add('translate-x-full'); setTimeout(() => chatModal.classList.add('hidden'), 300);
 });
 
+// YAZIYOR... Bildirimini Gönder
+chatInput.addEventListener('input', () => {
+    if(currentChatUserId && chatBroadcastChannel) {
+        chatBroadcastChannel.send({ type: 'broadcast', event: 'typing', payload: { from: currentUserSession.user.id, to: currentChatUserId } });
+    }
+});
+
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!currentChatUserId || !chatInput.value.trim()) return;
-
     const text = chatInput.value.trim();
+    if (!currentChatUserId || !text) return;
     chatInput.value = ''; 
     
-    const tempMsg = { metin: text, created_at: new Date().toISOString() };
-    appendMessageToUI(tempMsg, true);
-
+    // Mesajlar artık optimistik değil, Realtime sayesinde anında (çiftlenmeden) ID ile yüklenecek
     try {
         const { error } = await supabase.from('mesajlar').insert([{ gonderen_id: currentUserSession.user.id, alici_id: currentChatUserId, metin: text }]);
         if (error) throw error;
         if(!messagesListModal.classList.contains('hidden')) loadConversations();
-    } catch (err) { 
-        console.error("Mesaj gönderilemedi:", err);
-        Swal.fire({ icon: 'error', title: 'Hata', text: 'Mesaj iletilemedi.' });
+    } catch (err) { Swal.fire({ icon: 'error', title: 'Hata', text: 'Mesaj iletilemedi.' }); }
+});
+
+// DM FOTOĞRAF GÖNDERME
+chatMediaInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file || !currentChatUserId) return;
+    e.target.value = ''; // Input sıfırla
+    
+    chatHistory.insertAdjacentHTML('beforeend', `<div class="text-center text-xs text-slate-400 my-2" id="img-upload-loading">Fotoğraf gönderiliyor...</div>`);
+    scrollToChatBottom();
+
+    try {
+        const ext = file.name.split('.').pop();
+        const fileName = `dm-${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('medya').upload(fileName, file);
+        if(uploadError) throw uploadError;
+        
+        const finalMediaUrl = supabase.storage.from('medya').getPublicUrl(fileName).data.publicUrl;
+        await supabase.from('mesajlar').insert([{ gonderen_id: currentUserSession.user.id, alici_id: currentChatUserId, metin: '📷 Görsel', medya_url: finalMediaUrl }]);
+    } catch(err) {
+        Swal.fire({icon:'error', text:'Görsel gönderilemedi'});
+    } finally {
+        const loader = document.getElementById('img-upload-loading');
+        if(loader) loader.remove();
     }
 });
+
+// DM SİLME & BEĞENME (LONG PRESS & DOUBLE CLICK)
+let msgPressTimer;
+chatHistory.addEventListener('mousedown', handleMsgPressStart);
+chatHistory.addEventListener('touchstart', handleMsgPressStart);
+chatHistory.addEventListener('mouseup', handleMsgPressEnd);
+chatHistory.addEventListener('mouseleave', handleMsgPressEnd);
+chatHistory.addEventListener('touchend', handleMsgPressEnd);
+chatHistory.addEventListener('touchmove', handleMsgPressEnd);
+
+function handleMsgPressStart(e) {
+    const bubble = e.target.closest('.msg-bubble');
+    if(bubble) {
+        const msgId = bubble.getAttribute('data-msg-id');
+        const isMine = bubble.getAttribute('data-is-mine') === 'true';
+        msgPressTimer = setTimeout(() => {
+            if(isMine) {
+                Swal.fire({title: 'Mesajı Sil?', icon: 'warning', showCancelButton:true, confirmButtonText:'Sil', cancelButtonText:'İptal'}).then(async res => {
+                    if(res.isConfirmed) await supabase.from('mesajlar').delete().eq('id', msgId);
+                })
+            }
+        }, 600); // 600ms basılı tutma
+    }
+}
+function handleMsgPressEnd() { clearTimeout(msgPressTimer); }
+
+// Çift Tıkla Mesaj Beğenme
+chatHistory.addEventListener('dblclick', async (e) => {
+    const bubble = e.target.closest('.msg-bubble');
+    if(bubble) {
+        if(window.getSelection) window.getSelection().removeAllRanges(); // Seçimi iptal et
+        const msgId = bubble.getAttribute('data-msg-id');
+        const isLiked = bubble.getAttribute('data-is-liked') === 'true';
+        
+        // Optimistic Like
+        bubble.setAttribute('data-is-liked', (!isLiked).toString());
+        const heart = bubble.querySelector('.msg-heart');
+        if(!isLiked) { heart.classList.remove('hidden'); heart.classList.add('heart-pop'); } 
+        else { heart.classList.add('hidden'); heart.classList.remove('heart-pop'); }
+
+        await supabase.from('mesajlar').update({begendi: !isLiked}).eq('id', msgId);
+    }
+});
+
 
 // --- GÖNDERİ OLUŞTURMA ---
 postTypeRadios.forEach(radio => {
@@ -604,6 +732,7 @@ function generatePostHTML(post, isSingleView = false) {
         commentsHTML += '</div></div>';
     });
 
+    // MEDYA ALANI (Çift Tıklama İçin relative eklendi)
     let mediaHTML = '';
     if (post.gonderi_tipi === 'medya' && post.medya_url) {
         if (post.medya_url.endsWith('.mp4')) {
@@ -780,7 +909,6 @@ document.addEventListener('dblclick', async (e) => {
     const target = e.target;
     
     if (target.classList.contains('post-media-item')) {
-        // Tıklanan resmi seçmekteki gibi engelleme, standart dblclick olsun
         if (window.getSelection) { window.getSelection().removeAllRanges(); }
         
         const postId = target.getAttribute('data-post-id');
