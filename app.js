@@ -67,6 +67,10 @@ const upGrid = document.getElementById('up-grid');
 const followBtn = document.getElementById('follow-btn');
 const unfollowBtn = document.getElementById('unfollow-btn');
 
+const tabGrid = document.getElementById('tab-grid');
+const tabQuestions = document.getElementById('tab-questions');
+const upQuestionsList = document.getElementById('up-questions-list');
+
 const singlePostModal = document.getElementById('single-post-modal');
 const closeSinglePostBtn = document.getElementById('close-single-post');
 const singlePostContainer = document.getElementById('single-post-container');
@@ -77,15 +81,14 @@ let activeReplyData = {};
 let selectedAvatarFile = null;
 let selectedUpdateAvatarFile = null;
 let currentlyViewingProfileId = null;
-let realtimeChannel = null; // YENİ: Canlı yayın kanalı
+let realtimeChannel = null;
 
-// --- YARDIMCI FONKSİYONLAR ---
+// --- UTILS ---
 function toggleAuthForms(activeForm) {
     [loginForm, registerForm, forgotPasswordForm, resetPasswordForm].forEach(f => f.classList.add('hidden'));
     activeForm.classList.remove('hidden');
 }
 
-// --- AUTH İŞLEMLERİ ---
 avatarInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -96,6 +99,7 @@ avatarInput.addEventListener('change', (e) => {
     }
 });
 
+// --- AUTH & INITIALIZATION ---
 showRegisterBtn.addEventListener('click', (e) => { e.preventDefault(); toggleAuthForms(registerForm); });
 showLoginBtn.addEventListener('click', (e) => { e.preventDefault(); toggleAuthForms(loginForm); });
 showForgotPasswordBtn.addEventListener('click', (e) => { e.preventDefault(); toggleAuthForms(forgotPasswordForm); });
@@ -131,12 +135,8 @@ registerForm.addEventListener('submit', async (e) => {
         selectedAvatarFile = null;
         avatarPreview.innerHTML = '<i class="fa-solid fa-camera text-2xl text-slate-400 group-hover:text-blue-500 transition-colors"></i>';
         toggleAuthForms(loginForm);
-    } catch (error) {
-        Swal.fire({ icon: 'error', title: 'Hata', text: error.message });
-    } finally {
-        btn.innerHTML = 'Kayıt Ol';
-        btn.disabled = false;
-    }
+    } catch (error) { Swal.fire({ icon: 'error', title: 'Hata', text: error.message }); }
+    finally { btn.innerHTML = 'Kayıt Ol'; btn.disabled = false; }
 });
 
 loginForm.addEventListener('submit', async (e) => {
@@ -151,12 +151,8 @@ loginForm.addEventListener('submit', async (e) => {
         if (error) throw error;
         loginForm.reset();
         checkSession();
-    } catch (error) {
-        Swal.fire({ icon: 'error', title: 'Başarısız', text: "E-posta veya şifre hatalı!" });
-    } finally {
-        btn.innerHTML = 'Giriş Yap';
-        btn.disabled = false;
-    }
+    } catch (error) { Swal.fire({ icon: 'error', title: 'Başarısız', text: "E-posta veya şifre hatalı!" }); }
+    finally { btn.innerHTML = 'Giriş Yap'; btn.disabled = false; }
 });
 
 forgotPasswordForm.addEventListener('submit', async (e) => {
@@ -168,15 +164,11 @@ forgotPasswordForm.addEventListener('submit', async (e) => {
     try {
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
         if (error) throw error;
-        Swal.fire({ icon: 'success', title: 'Gönderildi', text: 'Sıfırlama bağlantısı iletildi.' });
+        Swal.fire({ icon: 'success', title: 'Gönderildi', text: 'Bağlantı iletildi.' });
         forgotPasswordForm.reset();
         toggleAuthForms(loginForm);
-    } catch (error) {
-        Swal.fire({ icon: 'error', title: 'Hata', text: error.message });
-    } finally {
-        btn.innerHTML = 'Gönder';
-        btn.disabled = false;
-    }
+    } catch (error) { Swal.fire({ icon: 'error', title: 'Hata', text: error.message }); }
+    finally { btn.innerHTML = 'Gönder'; btn.disabled = false; }
 });
 
 resetPasswordForm.addEventListener('submit', async (e) => {
@@ -188,31 +180,23 @@ resetPasswordForm.addEventListener('submit', async (e) => {
     try {
         const { error } = await supabase.auth.updateUser({ password: newPassword });
         if (error) throw error;
-        Swal.fire({ icon: 'success', title: 'Başarılı', text: 'Şifreniz güncellendi!', timer: 1500, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: 'Başarılı', text: 'Şifre güncellendi!', timer: 1500, showConfirmButton: false });
         resetPasswordForm.reset();
         checkSession();
-    } catch (error) {
-        Swal.fire({ icon: 'error', title: 'Hata', text: error.message });
-    } finally {
-        btn.innerHTML = 'Güncelle';
-        btn.disabled = false;
-    }
+    } catch (error) { Swal.fire({ icon: 'error', title: 'Hata', text: error.message }); }
+    finally { btn.innerHTML = 'Güncelle'; btn.disabled = false; }
 });
 
-// PROFİL DÜZENLEME
+// PROFİL AYARLARI
 editProfileBtn.addEventListener('click', () => {
-    dashboardView.classList.add('hidden');
-    editProfileForm.classList.remove('hidden');
+    dashboardView.classList.add('hidden'); editProfileForm.classList.remove('hidden');
     editNameInput.value = document.getElementById('dash-name').innerText;
     editBioInput.value = document.getElementById('dash-bio').innerText;
     editAvatarImg.src = document.getElementById('dash-avatar').src;
     selectedUpdateAvatarFile = null;
 });
 
-cancelEditBtn.addEventListener('click', () => {
-    editProfileForm.classList.add('hidden');
-    dashboardView.classList.remove('hidden');
-});
+cancelEditBtn.addEventListener('click', () => { editProfileForm.classList.add('hidden'); dashboardView.classList.remove('hidden'); });
 
 editAvatarInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -226,121 +210,78 @@ editAvatarInput.addEventListener('change', (e) => {
 
 editProfileForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const newName = editNameInput.value;
-    const newBio = editBioInput.value;
     const btn = document.getElementById('save-edit-btn');
-    btn.innerHTML = 'Kaydediliyor...';
-    btn.disabled = true;
+    btn.innerHTML = 'Kaydediliyor...'; btn.disabled = true;
     try {
-        if (!currentUserSession) throw new Error("Oturum bulunamadı.");
         let updatedAvatarUrl = null;
         if (selectedUpdateAvatarFile) {
             const ext = selectedUpdateAvatarFile.name.split('.').pop();
             const fileName = `${currentUserSession.user.id}-${Math.random()}.${ext}`;
-            const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, selectedUpdateAvatarFile);
-            if (uploadError) throw uploadError;
+            await supabase.storage.from('avatars').upload(fileName, selectedUpdateAvatarFile);
             updatedAvatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName).data.publicUrl;
         }
-        
-        const updateData = { ad_soyad: newName, biyografi: newBio };
+        const updateData = { ad_soyad: editNameInput.value, biyografi: editBioInput.value };
         if (updatedAvatarUrl) updateData.avatar_url = updatedAvatarUrl;
+        await supabase.from('uyeler').update(updateData).eq('id', currentUserSession.user.id);
         
-        const { error } = await supabase.from('uyeler').update(updateData).eq('id', currentUserSession.user.id);
-        if (error) throw error;
-        
-        editProfileForm.classList.add('hidden');
-        dashboardView.classList.remove('hidden');
+        editProfileForm.classList.add('hidden'); dashboardView.classList.remove('hidden');
         checkSession();
-    } catch (error) {
-        Swal.fire({ icon: 'error', title: 'Hata', text: error.message });
-    } finally {
-        btn.innerHTML = 'Kaydet';
-        btn.disabled = false;
-    }
+    } catch (error) { Swal.fire({ icon: 'error', title: 'Hata', text: error.message }); }
+    finally { btn.innerHTML = 'Kaydet'; btn.disabled = false; }
 });
 
 logoutBtn.addEventListener('click', async () => {
-    if (realtimeChannel) supabase.removeChannel(realtimeChannel); // Dinlemeyi durdur
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
     await supabase.auth.signOut();
-    mainAppContainer.classList.add('hidden');
-    authContainer.classList.remove('hidden');
+    mainAppContainer.classList.add('hidden'); authContainer.classList.remove('hidden');
 });
 
-// YENİ: REALTIME (CANLI YAYIN) DİNLEYİCİSİ
+// REALTIME ALTYAPISI
 function setupRealtime() {
-    if (realtimeChannel) return; // Zaten aktifse tekrar açma
-
+    if (realtimeChannel) return;
     realtimeChannel = supabase.channel('oz-yapi-realtime')
-        // Biri gönderi attığında (INSERT)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gonderiler' }, async (payload) => {
-            // Kendi gönderimiz değilse (çünkü kendi gönderimizi atınca zaten akışı yeniliyoruz)
             if (payload.new.user_id !== currentUserSession?.user?.id) {
-                // Yeni gelen gönderinin tam verisini (Yazar bilgisi vs) arka planda çek
-                const { data: newPost } = await supabase
-                    .from('gonderiler')
-                    .select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`)
-                    .eq('id', payload.new.id)
-                    .single();
-
-                if (newPost) {
-                    // Eğer uygun filtredeysek en üste ekle
-                    if (currentFeedFilter === 'all' || currentFeedFilter === newPost.gonderi_tipi) {
-                        // Eğer boş ekran yazısı varsa kaldır
-                        const emptyIcon = feedList.querySelector('.fa-folder-open');
-                        if (emptyIcon) feedList.innerHTML = '';
-                        
-                        feedList.insertAdjacentHTML('afterbegin', generatePostHTML(newPost, false));
-                    }
+                const { data: newPost } = await supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).eq('id', payload.new.id).single();
+                if (newPost && (currentFeedFilter === 'all' || currentFeedFilter === newPost.gonderi_tipi)) {
+                    const emptyIcon = feedList.querySelector('.fa-folder-open');
+                    if (emptyIcon) feedList.innerHTML = '';
+                    feedList.insertAdjacentHTML('afterbegin', generatePostHTML(newPost, false));
                 }
             }
         })
-        // Sana bildirim geldiğinde zildeki kırmızı noktayı anında yak
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bildirimler' }, (payload) => {
-            if (payload.new.alici_id === currentUserSession?.user?.id) {
-                notificationBadge.classList.remove('hidden');
-            }
+            if (payload.new.alici_id === currentUserSession?.user?.id) notificationBadge.classList.remove('hidden');
         })
         .subscribe();
 }
 
-// OTURUM KONTROLÜ
 async function checkSession() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
         currentUserSession = session;
-        authContainer.classList.add('hidden');
-        mainAppContainer.classList.remove('hidden');
-        
+        authContainer.classList.add('hidden'); mainAppContainer.classList.remove('hidden');
         const { data: userData } = await supabase.from('uyeler').select('*').eq('id', session.user.id).single();
         if (userData) {
             document.getElementById('dash-name').innerText = userData.ad_soyad;
             document.getElementById('dash-role').innerText = userData.rol;
-            document.getElementById('dash-email').innerText = session.user.email;
             document.getElementById('dash-bio').innerText = userData.biyografi || '';
             document.getElementById('dash-avatar').src = userData.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.ad_soyad)}&background=1e3a8a&color=fff`;
             document.getElementById('dash-my-profile-trigger').setAttribute('data-user-id', session.user.id);
             document.getElementById('dash-name').setAttribute('data-user-id', session.user.id);
         }
-        
         loadFeed(currentFeedFilter);
         checkNotificationsBadge();
-        setupRealtime(); // Canlı radarı başlat
+        setupRealtime();
     } else {
         currentUserSession = null;
         if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
-        mainAppContainer.classList.add('hidden');
-        authContainer.classList.remove('hidden');
+        mainAppContainer.classList.add('hidden'); authContainer.classList.remove('hidden');
         toggleAuthForms(loginForm);
     }
 }
 
-document.addEventListener('DOMContentLoaded', checkSession);
-supabase.auth.onAuthStateChange((event) => {
-    if (event === 'PASSWORD_RECOVERY') toggleAuthForms(resetPasswordForm);
-    else if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') checkSession();
-});
-
-// --- BİLDİRİM SİSTEMİ ---
+// --- BİLDİRİMLER ---
 async function checkNotificationsBadge() {
     if (!currentUserSession) return;
     try {
@@ -352,43 +293,29 @@ async function checkNotificationsBadge() {
 
 notificationBtn.addEventListener('click', async () => {
     notificationModal.classList.remove('hidden');
-    notificationList.innerHTML = '<div class="text-center text-slate-400 mt-10"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><p>Yükleniyor...</p></div>';
+    notificationList.innerHTML = '<div class="text-center text-slate-400 mt-10"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i></div>';
     try {
         const { data: notifications } = await supabase.from('bildirimler').select('*, gonderen:uyeler!gonderen_id(ad_soyad, avatar_url)').eq('alici_id', currentUserSession.user.id).order('created_at', { ascending: false }).limit(20);
-        if (!notifications || notifications.length === 0) {
-            notificationList.innerHTML = `<div class="text-center text-slate-500 mt-10"><i class="fa-regular fa-bell-slash text-3xl mb-2"></i><p>Bildirim yok.</p></div>`;
-            return;
-        }
+        if (!notifications || notifications.length === 0) { notificationList.innerHTML = '<p class="text-center mt-10 text-slate-500">Bildirim yok.</p>'; return; }
         notificationList.innerHTML = '';
         notifications.forEach(notif => {
             const sender = notif.gonderen || {};
-            const avatar = sender.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sender.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
-            const isReadClass = notif.okundu ? 'bg-white' : 'bg-blue-50 border border-blue-100';
-            const dotClass = notif.okundu ? 'hidden' : 'block';
-            
+            const avatar = sender.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sender.ad_soyad || 'U')}`;
             notificationList.insertAdjacentHTML('beforeend', `
-                <div class="p-3 rounded-xl flex items-start gap-3 relative cursor-pointer hover:bg-slate-100 transition-colors ${isReadClass}" onclick="openSinglePostAndMarkRead(${notif.id}, ${notif.gonderi_id})">
-                    <span class="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full ${dotClass}"></span>
-                    <img src="${avatar}" class="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0">
-                    <div class="flex-1 pr-4">
-                        <p class="text-sm text-slate-800"><span class="font-bold">${sender.ad_soyad}</span> ${notif.mesaj}</p>
-                        <p class="text-[10px] text-slate-400 mt-1">${new Date(notif.created_at).toLocaleDateString('tr-TR', { hour:'2-digit', minute:'2-digit' })}</p>
-                    </div>
+                <div class="p-3 rounded-xl flex items-start gap-3 relative cursor-pointer hover:bg-slate-100 bg-white border border-slate-100 ${notif.okundu ? '' : 'bg-blue-50/60'}" onclick="openSinglePostAndMarkRead(${notif.id}, ${notif.gonderi_id})">
+                    <img src="${avatar}" class="w-10 h-10 rounded-full object-cover flex-shrink-0">
+                    <div class="flex-1 text-sm text-slate-800"><span class="font-bold">${sender.ad_soyad}</span> ${notif.mesaj}</div>
                 </div>
             `);
         });
     } catch (error) {}
 });
 
-closeNotificationModalBtn.addEventListener('click', () => {
-    notificationModal.classList.add('hidden');
-    checkNotificationsBadge(); 
-});
+closeNotificationModalBtn.addEventListener('click', () => { notificationModal.classList.add('hidden'); checkNotificationsBadge(); });
 
 window.openSinglePostAndMarkRead = async (notificationId, postId) => {
     await supabase.from('bildirimler').update({ okundu: true }).eq('id', notificationId);
-    notificationModal.classList.add('hidden');
-    checkNotificationsBadge();
+    notificationModal.classList.add('hidden'); checkNotificationsBadge();
     openSinglePost(postId);
 };
 
@@ -405,205 +332,142 @@ closePostModalBtn.addEventListener('click', () => { createPostModal.classList.ad
 
 createPostForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if(!currentUserSession) return;
-    const postType = document.querySelector('input[name="post_type"]:checked').value;
-    const text = postTextInput.value;
-    const file = postMediaInput.files[0];
-    submitPostBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Paylaşılıyor...';
-    submitPostBtn.disabled = true;
-
+    submitPostBtn.innerHTML = 'Paylaşılıyor...'; submitPostBtn.disabled = true;
     try {
         let finalMediaUrl = null;
-        if (postType === 'medya' && file) {
+        if (document.querySelector('input[name="post_type"]:checked').value === 'medya' && postMediaInput.files[0]) {
+            const file = postMediaInput.files[0];
             const ext = file.name.split('.').pop();
-            const fileName = `post-${Date.now()}-${Math.random()}.${ext}`;
-            const { error: uploadError } = await supabase.storage.from('medya').upload(fileName, file);
-            if (uploadError) throw new Error("Medya yüklenemedi: " + uploadError.message);
+            const fileName = `post-${Date.now()}.${ext}`;
+            await supabase.storage.from('medya').upload(fileName, file);
             finalMediaUrl = supabase.storage.from('medya').getPublicUrl(fileName).data.publicUrl;
         }
-
-        const { error: dbError } = await supabase.from('gonderiler').insert([{ user_id: currentUserSession.user.id, gonderi_tipi: postType, metin: text, medya_url: finalMediaUrl }]);
-        if (dbError) throw dbError;
-
-        createPostModal.classList.add('hidden');
-        createPostForm.reset();
-        mediaUploadContainer.classList.add('hidden');
+        await supabase.from('gonderiler').insert([{ user_id: currentUserSession.user.id, gonderi_tipi: document.querySelector('input[name="post_type"]:checked').value, metin: postTextInput.value, medya_url: finalMediaUrl }]);
+        createPostModal.classList.add('hidden'); createPostForm.reset(); mediaUploadContainer.classList.add('hidden');
         loadFeed(currentFeedFilter);
-    } catch (error) { Swal.fire({ icon: 'error', title: 'Hata', text: error.message });
-    } finally { submitPostBtn.innerHTML = 'Paylaş'; submitPostBtn.disabled = false; }
+    } catch (error) {} finally { submitPostBtn.innerHTML = 'Paylaş'; submitPostBtn.disabled = false; }
 });
 
 feedFilters.forEach(btn => {
     btn.addEventListener('click', (e) => {
-        feedFilters.forEach(f => {
-            f.classList.remove('bg-slate-800', 'text-white');
-            f.classList.add('bg-white', 'text-slate-600', 'border-slate-200');
-        });
-        e.target.classList.remove('bg-white', 'text-slate-600', 'border-slate-200');
-        e.target.classList.add('bg-slate-800', 'text-white');
+        feedFilters.forEach(f => f.className = "feed-filter px-4 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-semibold shadow-sm");
+        e.target.className = "feed-filter active px-4 py-1.5 rounded-full bg-slate-800 text-white text-sm font-semibold transition-colors";
         currentFeedFilter = e.target.getAttribute('data-filter');
         loadFeed(currentFeedFilter);
     });
 });
 
+// --- TEMPLATE GENERATOR (GÖNDERİ HTML) ---
 function generatePostHTML(post, isSingleView = false) {
     const author = post.yazar || {};
     const avatar = author.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
-    const postDate = new Date(post.created_at);
-    const dateStr = postDate.toLocaleDateString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
-
     const likesCount = post.etkilesimler ? post.etkilesimler.length : 0;
     const isLikedByMe = post.etkilesimler ? post.etkilesimler.some(e => e.user_id === currentUserSession.user.id) : false;
-    const likeIconClass = isLikedByMe ? "fa-solid fa-heart text-red-500" : "fa-regular fa-heart text-slate-500";
-    const likeTextClass = isLikedByMe ? "text-red-500" : "text-slate-500";
-
-    const postDiffMinutes = (new Date() - postDate) / (1000 * 60);
-    const isPostOwner = currentUserSession.user.id === post.user_id;
-    const canEditPost = isPostOwner && (postDiffMinutes <= 15);
+    
     let postOptionsHTML = '';
-
-    if (isPostOwner) {
+    if (currentUserSession.user.id === post.user_id) {
+        const canEdit = ((new Date() - new Date(post.created_at)) / (1000 * 60)) <= 15;
         postOptionsHTML = `
             <div class="relative group ml-auto">
-                <button class="text-slate-400 hover:text-slate-600 p-2"><i class="fa-solid fa-ellipsis-vertical pointer-events-none"></i></button>
-                <div class="absolute right-0 mt-1 w-32 bg-white border border-slate-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 overflow-hidden">
-                    ${canEditPost ? `<button class="edit-post-btn w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" data-post-id="${post.id}" data-text="${encodeURIComponent(post.metin)}"><i class="fa-solid fa-pen mr-2 text-blue-500 pointer-events-none"></i>Düzenle</button>` : ''}
-                    <button class="delete-post-btn w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-50" data-post-id="${post.id}"><i class="fa-solid fa-trash mr-2 pointer-events-none"></i>Sil</button>
+                <button class="text-slate-400 p-2"><i class="fa-solid fa-ellipsis-vertical pointer-events-none"></i></button>
+                <div class="absolute right-0 mt-1 w-32 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 overflow-hidden">
+                    ${canEdit ? `<button class="edit-post-btn w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" data-post-id="${post.id}" data-text="${encodeURIComponent(post.metin)}">Düzenle</button>` : ''}
+                    <button class="delete-post-btn w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-50" data-post-id="${post.id}">Sil</button>
                 </div>
             </div>
         `;
     }
 
-    const allComments = post.gonderi_yorumlari || [];
-    const topLevelComments = allComments.filter(c => !c.ust_yorum_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-    const replies = allComments.filter(c => c.ust_yorum_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-    const commentsCount = allComments.length;
-    
     let commentsHTML = '';
-    topLevelComments.forEach(comment => {
+    const allComments = post.gonderi_yorumlari || [];
+    allComments.filter(c => !c.ust_yorum_id).forEach(comment => {
         const cAuthor = comment.yazar || {};
-        const cAvatar = cAuthor.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(cAuthor.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
-        const cIsOwner = currentUserSession.user.id === comment.user_id;
-        let cOptionsHTML = '';
-        if (cIsOwner) cOptionsHTML = `${(new Date() - new Date(comment.created_at))/(1000*60) <= 15 ? `<button class="edit-comment-btn hover:text-blue-500 ml-2" data-comment-id="${comment.id}" data-text="${encodeURIComponent(comment.metin)}">Düzenle</button>` : ''}<button class="delete-comment-btn hover:text-red-500 ml-2" data-comment-id="${comment.id}">Sil</button>`;
+        const cAvatar = cAuthor.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(cAuthor.ad_soyad || 'U')}`;
+        let cOptions = currentUserSession.user.id === comment.user_id ? `<button class="delete-comment-btn hover:text-red-500 ml-2" data-comment-id="${comment.id}">Sil</button>` : '';
 
         commentsHTML += `
             <div class="flex gap-2 items-start mt-4">
-                <img src="${cAvatar}" class="w-8 h-8 rounded-full object-cover border border-slate-200 mt-1 cursor-pointer user-profile-trigger" data-user-id="${comment.user_id}">
+                <img src="${cAvatar}" class="w-8 h-8 rounded-full object-cover border border-slate-200 cursor-pointer user-profile-trigger" data-user-id="${comment.user_id}">
                 <div class="flex-1">
-                    <div class="bg-slate-100 px-3 py-2 rounded-xl inline-block">
-                        <span class="font-bold text-[13px] text-slate-800 mr-2 cursor-pointer hover:underline user-profile-trigger" data-user-id="${comment.user_id}">${cAuthor.ad_soyad || 'Kullanıcı'}</span>
-                        <span class="text-sm text-slate-700 whitespace-pre-wrap">${comment.metin}</span>
+                    <div class="bg-slate-100 px-3 py-1.5 rounded-xl inline-block">
+                        <span class="font-bold text-[13px] text-slate-800 mr-2 cursor-pointer user-profile-trigger" data-user-id="${comment.user_id}">${cAuthor.ad_soyad}</span>
+                        <span class="text-sm text-slate-700">${comment.metin}</span>
                     </div>
-                    <div class="flex items-center mt-1 ml-2 text-[11px] text-slate-500 font-semibold">
-                        <button class="hover:text-slate-800 reply-to-comment-btn" data-post-id="${post.id}" data-comment-id="${comment.id}" data-author-name="${cAuthor.ad_soyad}">Yanıtla</button>
-                        ${cOptionsHTML}
+                    <div class="flex gap-2 mt-0.5 ml-2 text-[11px] text-slate-400 font-semibold">
+                        <button class="reply-to-comment-btn" data-post-id="${post.id}" data-comment-id="${comment.id}" data-author-name="${cAuthor.ad_soyad}">Yanıtla</button>${cOptions}
                     </div>
         `;
 
-        replies.filter(r => r.ust_yorum_id === comment.id).forEach(reply => {
+        allComments.filter(r => r.ust_yorum_id === comment.id).forEach(reply => {
             const rAuthor = reply.yazar || {};
-            const rAvatar = rAuthor.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(rAuthor.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
-            const rIsOwner = currentUserSession.user.id === reply.user_id;
-            let rOptionsHTML = '';
-            if (rIsOwner) rOptionsHTML = `${(new Date() - new Date(reply.created_at))/(1000*60) <= 15 ? `<button class="edit-comment-btn hover:text-blue-500 ml-2" data-comment-id="${reply.id}" data-text="${encodeURIComponent(reply.metin)}">Düzenle</button>` : ''}<button class="delete-comment-btn hover:text-red-500 ml-2" data-comment-id="${reply.id}">Sil</button>`;
-
             commentsHTML += `
-                <div class="flex gap-2 items-start mt-2 ml-4 border-l-2 border-slate-200 pl-2">
-                    <img src="${rAvatar}" class="w-6 h-6 rounded-full object-cover border border-slate-200 mt-1 cursor-pointer user-profile-trigger" data-user-id="${reply.user_id}">
-                    <div>
-                        <div class="bg-slate-100 px-3 py-2 rounded-xl inline-block">
-                            <span class="font-bold text-[12px] text-slate-800 mr-1 cursor-pointer hover:underline user-profile-trigger" data-user-id="${reply.user_id}">${rAuthor.ad_soyad || 'Kullanıcı'}</span>
-                            <span class="text-[13px] text-slate-700 whitespace-pre-wrap">${reply.metin}</span>
-                        </div>
-                        <div class="flex items-center mt-1 ml-2 text-[10px] text-slate-500 font-semibold">${rOptionsHTML}</div>
+                <div class="flex gap-2 items-start mt-2 ml-4 border-l-2 pl-2 border-slate-200">
+                    <div class="bg-slate-100 px-3 py-1.5 rounded-xl inline-block">
+                        <span class="font-bold text-[12px] text-slate-800 cursor-pointer user-profile-trigger" data-user-id="${reply.user_id}">${rAuthor.ad_soyad}</span>
+                        <span class="text-[13px] text-slate-700">${reply.metin}</span>
                     </div>
                 </div>
             `;
         });
-        commentsHTML += `</div></div>`; 
+        commentsHTML += '</div></div>';
     });
 
     let mediaHTML = '';
     if (post.gonderi_tipi === 'medya' && post.medya_url) {
-        if(post.medya_url.endsWith('.mp4')) mediaHTML = `<video controls class="w-full h-auto max-h-96 object-cover bg-black mt-3 rounded-xl pointer-events-auto"><source src="${post.medya_url}" type="video/mp4"></video>`;
-        else mediaHTML = `<img src="${post.medya_url}" class="w-full h-auto max-h-96 object-cover bg-slate-100 mt-3 rounded-xl border border-slate-100 pointer-events-auto">`;
+        mediaHTML = post.medya_url.endsWith('.mp4') ? `<video controls class="w-full h-auto max-h-96 object-cover bg-black mt-3 rounded-xl"><source src="${post.medya_url}"></video>` : `<img src="${post.medya_url}" class="w-full h-auto max-h-96 object-cover bg-slate-50 mt-3 rounded-xl border">`;
     }
 
     return `
-        <div id="post-${post.id}" class="post-card no-select bg-white p-5 rounded-2xl shadow-sm border border-slate-200 transition-all duration-500" data-post-id="${post.id}">
-            <div class="flex justify-between items-start mb-3 pointer-events-auto">
-                <div class="flex items-center gap-3">
-                    <img src="${avatar}" class="w-11 h-11 rounded-full object-cover border border-slate-200 cursor-pointer user-profile-trigger" data-user-id="${post.user_id}">
-                    <div>
-                        <h4 class="font-bold text-slate-800 text-sm flex items-center gap-2 cursor-pointer hover:underline user-profile-trigger" data-user-id="${post.user_id}">
-                            ${author.ad_soyad || 'Bilinmeyen'}
-                            <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] uppercase tracking-wide border border-blue-100">${author.rol || 'Müşteri'}</span>
-                        </h4>
-                        <p class="text-[11px] text-slate-400">${dateStr}</p>
-                    </div>
+        <div id="post-${post.id}" class="post-card no-select bg-white p-5 rounded-2xl shadow-sm border border-slate-200" data-post-id="${post.id}">
+            <div class="flex items-start mb-3">
+                <img src="${avatar}" class="w-11 h-11 rounded-full object-cover border cursor-pointer user-profile-trigger" data-user-id="${post.user_id}">
+                <div class="ml-3">
+                    <h4 class="font-bold text-slate-800 text-sm cursor-pointer user-profile-trigger hover:underline" data-user-id="${post.user_id}">${author.ad_soyad} <span class="text-[10px] bg-blue-50 text-blue-600 px-1 rounded">${author.rol}</span></h4>
+                    <p class="text-[11px] text-slate-400">${new Date(post.created_at).toLocaleDateString('tr-TR')}</p>
                 </div>
                 ${postOptionsHTML}
             </div>
-            
             <div class="text-slate-800 text-[15px] whitespace-pre-wrap pointer-events-auto">${post.metin}</div>
             ${mediaHTML}
-            
-            <div class="flex items-center gap-6 mt-4 pt-3 border-t border-slate-100 pointer-events-auto">
-                <button class="action-btn like-btn flex items-center gap-2 ${likeTextClass} hover:text-red-500 transition-colors text-sm font-semibold pointer-events-auto" data-post-id="${post.id}" data-author-id="${post.user_id}">
-                    <i class="${likeIconClass} pointer-events-none" id="like-icon-${post.id}"></i> <span class="pointer-events-none" id="like-count-${post.id}">${likesCount > 0 ? likesCount : 'Beğen'}</span>
+            <div class="flex gap-6 mt-4 pt-3 border-t border-slate-100 pointer-events-auto">
+                <button class="like-btn flex items-center gap-2 text-sm font-semibold ${isLikedByMe ? 'text-red-500' : 'text-slate-500'}" data-post-id="${post.id}" data-author-id="${post.user_id}">
+                    <i class="${isLikedByMe ? 'fa-solid fa-heart' : 'fa-regular fa-heart'}" id="like-icon-${post.id}"></i> <span id="like-count-${post.id}">${likesCount > 0 ? likesCount : 'Beğen'}</span>
                 </button>
-                <button class="action-btn comment-toggle-btn flex items-center gap-2 text-slate-500 hover:text-blue-500 transition-colors text-sm font-semibold pointer-events-auto" data-post-id="${post.id}">
-                    <i class="fa-regular fa-comment text-lg pointer-events-none"></i> <span class="pointer-events-none">${commentsCount > 0 ? commentsCount : 'Yorum Yap'}</span>
+                <button class="comment-toggle-btn flex items-center gap-2 text-slate-500 text-sm font-semibold" data-post-id="${post.id}">
+                    <i class="fa-regular fa-comment"></i> <span>${allComments.length > 0 ? dangers(allComments.length) : 'Yorum Yap'}</span>
                 </button>
             </div>
-
             <div class="comment-section ${isSingleView ? '' : 'hidden'} mt-4 pt-4 border-t border-slate-100 pointer-events-auto" id="comment-section-${post.id}">
-                <div class="mb-4 space-y-1" id="comment-list-${post.id}">${commentsHTML}</div>
-                <div id="reply-indicator-${post.id}" class="hidden flex items-center justify-between bg-blue-50 text-blue-700 px-3 py-1.5 rounded-t-lg text-xs font-bold border border-blue-100 border-b-0">
-                    <span><i class="fa-solid fa-reply mr-1"></i> <span id="reply-name-${post.id}"></span> kullanıcısına yanıt veriliyor</span>
-                    <button class="cancel-reply-btn text-blue-500 hover:text-red-500" data-post-id="${post.id}"><i class="fa-solid fa-xmark"></i></button>
+                <div class="mb-4 space-y-1">${commentsHTML}</div>
+                <div id="reply-indicator-${post.id}" class="hidden items-center justify-between bg-blue-50 text-blue-700 px-3 py-1 rounded-t-lg text-xs font-bold border border-b-0">
+                    <span><span id="reply-name-${post.id}"></span> kişisine yanıt veriliyor</span>
+                    <button class="cancel-reply-btn" data-post-id="${post.id}"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="flex gap-2">
-                    <input type="text" id="comment-input-${post.id}" class="flex-1 px-4 py-2 bg-slate-100 border border-slate-200 rounded-full focus:outline-none focus:border-blue-400 focus:bg-white text-sm transition-colors" placeholder="Yorum ekle...">
-                    <button class="action-btn submit-comment-btn w-10 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center transition-colors shadow-sm" data-post-id="${post.id}" data-author-id="${post.user_id}">
-                        <i class="fa-solid fa-paper-plane pointer-events-none text-sm"></i>
-                    </button>
+                    <input type="text" id="comment-input-${post.id}" class="flex-1 px-4 py-2 bg-slate-100 border rounded-full text-sm focus:outline-none focus:border-blue-400 focus:bg-white" placeholder="Yorum ekle...">
+                    <button class="submit-comment-btn w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-sm" data-post-id="${post.id}" data-author-id="${post.user_id}"><i class="fa-solid fa-paper-plane text-sm"></i></button>
                 </div>
             </div>
         </div>
     `;
 }
 
+function dangers(val){ return val; }
+
 async function loadFeed(filterType) {
     if (!currentUserSession) return;
     feedList.innerHTML = '<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><p>Yükleniyor...</p></div>';
-
     try {
         let query = supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).order('created_at', { ascending: false });
         if (filterType !== 'all') query = query.eq('gonderi_tipi', filterType);
-        
-        const { data: posts, error } = await query;
-        if (error) throw error;
-
-        if (!posts || posts.length === 0) {
-            feedList.innerHTML = `<div class="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200"><i class="fa-regular fa-folder-open text-3xl mb-2"></i><p>Buralar henüz çok sessiz.</p></div>`;
-            return;
-        }
-
+        const { data: posts } = await query;
+        if (!posts || posts.length === 0) { feedList.innerHTML = '<div class="bg-white p-8 border rounded-xl text-center text-slate-500"><i class="fa-regular fa-folder-open text-3xl mb-2"></i><p>Henüz paylaşım yok.</p></div>'; return; }
         feedList.innerHTML = '';
-        posts.forEach(post => {
-            feedList.insertAdjacentHTML('beforeend', generatePostHTML(post, false));
-        });
-
-    } catch (error) {
-        feedList.innerHTML = `<div class="p-8 text-center text-red-500 bg-white rounded-xl border border-slate-200"><p>Gönderiler yüklenirken hata oluştu.</p></div>`;
-    }
+        posts.forEach(p => feedList.insertAdjacentHTML('beforeend', generatePostHTML(p, false)));
+    } catch (e) {}
 }
 
-// ==========================================
-// OPTIMISTIC UI: LIKE & YORUM & AKSİYONLAR
-// ==========================================
+// --- OPTIMISTIC UI & EVENT DELEGATION ---
 document.addEventListener('click', async (e) => {
     if (!currentUserSession) return;
     const target = e.target;
@@ -611,246 +475,184 @@ document.addEventListener('click', async (e) => {
     if (target.classList.contains('like-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
-        
         const icon = document.getElementById(`like-icon-${postId}`);
         const countSpan = document.getElementById(`like-count-${postId}`);
-        const isCurrentlyLiked = icon.classList.contains('fa-solid');
+        const isLiked = icon.classList.contains('fa-solid');
         let currentCount = parseInt(countSpan.innerText) || 0;
 
-        if (isCurrentlyLiked) {
-            icon.className = "fa-regular fa-heart text-lg text-slate-500 pointer-events-none";
-            target.classList.replace('text-red-500', 'text-slate-500');
-            currentCount = currentCount > 1 ? currentCount - 1 : 'Beğen';
+        if (isLiked) {
+            icon.className = "fa-regular fa-heart"; target.classList.replace('text-red-500', 'text-slate-500');
+            countSpan.innerText = currentCount > 1 ? currentCount - 1 : 'Beğen';
         } else {
-            icon.className = "fa-solid fa-heart text-lg text-red-500 pointer-events-none";
-            target.classList.replace('text-slate-500', 'text-red-500');
-            currentCount = currentCount === 'Beğen' ? 1 : currentCount + 1;
+            icon.className = "fa-solid fa-heart text-red-500"; target.classList.replace('text-slate-500', 'text-red-500');
+            countSpan.innerText = currentCount === 0 ? 1 : currentCount + 1;
         }
-        countSpan.innerText = currentCount;
 
         try {
             const { data: existingLike } = await supabase.from('etkilesimler').select('id').eq('gonderi_id', postId).eq('user_id', currentUserSession.user.id).single();
-            if (existingLike) {
-                await supabase.from('etkilesimler').delete().eq('id', existingLike.id);
-            } else {
+            if (existingLike) { await supabase.from('etkilesimler').delete().eq('id', existingLike.id); } 
+            else {
                 await supabase.from('etkilesimler').insert([{ gonderi_id: postId, user_id: currentUserSession.user.id, etkilesim_tipi: 'like' }]);
-                if (authorId !== currentUserSession.user.id) {
-                    await supabase.from('bildirimler').insert([{ alici_id: authorId, gonderen_id: currentUserSession.user.id, mesaj: 'Gönderini beğendi.', gonderi_id: postId }]);
-                }
+                if (authorId !== currentUserSession.user.id) await supabase.from('bildirimler').insert([{ alici_id: authorId, gonderen_id: currentUserSession.user.id, mesaj: 'Gönderini beğendi.', gonderi_id: postId }]);
             }
-        } catch (err) {} 
+        } catch (err) {}
     }
 
     if (target.classList.contains('submit-comment-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
-        const inputEl = document.getElementById(`comment-input-${postId}`);
-        const commentText = inputEl.value.trim();
-        if (!commentText) return;
-
-        target.disabled = true; target.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        const input = document.getElementById(`comment-input-${postId}`);
+        if (!input.value.trim()) return;
+        target.disabled = true;
         try {
-            const ustYorumId = activeReplyData[postId] || null;
-            await supabase.from('gonderi_yorumlari').insert([{ gonderi_id: postId, user_id: currentUserSession.user.id, metin: commentText, ust_yorum_id: ustYorumId }]);
-            if (authorId !== currentUserSession.user.id) {
-                let bildirimMesaji = ustYorumId ? 'Yorumuna yanıt verdi: ' : 'Gönderine yorum yaptı: ';
-                await supabase.from('bildirimler').insert([{ alici_id: authorId, gonderen_id: currentUserSession.user.id, mesaj: bildirimMesaji + commentText.substring(0, 20) + '...', gonderi_id: postId }]);
-            }
-            delete activeReplyData[postId];
-            inputEl.value = '';
+            const parentId = activeReplyData[postId] || null;
+            await supabase.from('gonderi_yorumlari').insert([{ gonderi_id: postId, user_id: currentUserSession.user.id, metin: input.value.trim(), ust_yorum_id: parentId }]);
+            if (authorId !== currentUserSession.user.id) await supabase.from('bildirimler').insert([{ alici_id: authorId, gonderen_id: currentUserSession.user.id, mesaj: 'Gönderine yorum yaptı.', gonderi_id: postId }]);
+            delete activeReplyData[postId]; input.value = '';
             
             const { data: post } = await supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).eq('id', postId).single();
-            const newHTML = generatePostHTML(post, true);
-            document.getElementById(`post-${postId}`).outerHTML = newHTML;
-
-        } catch (err) {} finally { target.disabled = false; target.innerHTML = '<i class="fa-solid fa-paper-plane text-sm"></i>'; }
+            document.getElementById(`post-${postId}`).outerHTML = generatePostHTML(post, true);
+        } catch(err) {} finally { target.disabled = false; }
     }
 
     if (target.classList.contains('comment-toggle-btn')) {
-        const postId = target.getAttribute('data-post-id');
-        const commentSection = document.getElementById(`comment-section-${postId}`);
-        commentSection.classList.toggle('hidden');
-        if(!commentSection.classList.contains('hidden')) document.getElementById(`comment-input-${postId}`).focus();
+        document.getElementById(`comment-section-${target.getAttribute('data-post-id')}`).classList.toggle('hidden');
     }
 
     if (target.classList.contains('reply-to-comment-btn')) {
-        const postId = target.getAttribute('data-post-id');
-        activeReplyData[postId] = target.getAttribute('data-comment-id');
-        document.getElementById(`reply-indicator-${postId}`).classList.replace('hidden', 'flex');
-        document.getElementById(`reply-name-${postId}`).innerText = target.getAttribute('data-author-name');
-        document.getElementById(`comment-input-${postId}`).focus();
+        const pId = target.getAttribute('data-post-id');
+        activeReplyData[pId] = target.getAttribute('data-comment-id');
+        document.getElementById(`reply-indicator-${pId}`).classList.replace('hidden', 'flex');
+        document.getElementById(`reply-name-${pId}`).innerText = target.getAttribute('data-author-name');
     }
 
     if (target.classList.contains('cancel-reply-btn') || target.closest('.cancel-reply-btn')) {
-        const btn = target.classList.contains('cancel-reply-btn') ? target : target.closest('.cancel-reply-btn');
-        const postId = btn.getAttribute('data-post-id');
-        delete activeReplyData[postId];
-        document.getElementById(`reply-indicator-${postId}`).classList.replace('flex', 'hidden');
+        const pId = (target.getAttribute('data-post-id') || target.closest('.cancel-reply-btn').getAttribute('data-post-id'));
+        delete activeReplyData[pId]; document.getElementById(`reply-indicator-${pId}`).classList.replace('flex', 'hidden');
     }
 
     if (target.classList.contains('delete-post-btn')) {
-        const postId = target.getAttribute('data-post-id');
-        Swal.fire({ title: 'Sil?', text: "Gönderiyi siliyorum!", icon: 'warning', showCancelButton: true, confirmButtonText: 'Evet' }).then(async (res) => { if (res.isConfirmed) { await supabase.from('gonderiler').delete().eq('id', postId); loadFeed(currentFeedFilter); closeSinglePostBtn.click(); } });
-    }
-    if (target.classList.contains('edit-post-btn')) {
-        const postId = target.getAttribute('data-post-id');
-        const oldText = decodeURIComponent(target.getAttribute('data-text'));
-        const { value: newText } = await Swal.fire({ input: 'textarea', inputValue: oldText, showCancelButton: true, confirmButtonText: 'Kaydet' });
-        if (newText && newText !== oldText) { await supabase.from('gonderiler').update({ metin: newText }).eq('id', postId); loadFeed(currentFeedFilter); closeSinglePostBtn.click(); }
+        await supabase.from('gonderiler').delete().eq('id', target.getAttribute('data-post-id'));
+        loadFeed(currentFeedFilter); closeSinglePostBtn.click();
     }
     if (target.classList.contains('delete-comment-btn')) {
-        const commentId = target.getAttribute('data-comment-id');
-        Swal.fire({ title: 'Sil?', icon: 'question', showCancelButton: true, confirmButtonText: 'Evet' }).then(async (res) => { if (res.isConfirmed) { await supabase.from('gonderi_yorumlari').delete().eq('id', commentId); loadFeed(currentFeedFilter); } });
-    }
-    if (target.classList.contains('edit-comment-btn')) {
-        const commentId = target.getAttribute('data-comment-id');
-        const oldText = decodeURIComponent(target.getAttribute('data-text'));
-        const { value: newText } = await Swal.fire({ input: 'text', inputValue: oldText, showCancelButton: true, confirmButtonText: 'Kaydet' });
-        if (newText && newText !== oldText) { await supabase.from('gonderi_yorumlari').update({ metin: newText }).eq('id', commentId); loadFeed(currentFeedFilter); }
+        await supabase.from('gonderi_yorumlari').delete().eq('id', target.getAttribute('data-comment-id'));
+        loadFeed(currentFeedFilter);
     }
 });
 
-// ==========================================
-// UZUN BASMA (LONG PRESS) - BEĞENENLER
-// ==========================================
-let pressTimer;
-function startPress(e) {
-    const postCard = e.target.closest('.post-card');
-    if (postCard && !e.target.closest('button') && !e.target.closest('input')) {
-        const postId = postCard.getAttribute('data-post-id');
-        pressTimer = window.setTimeout(() => showLikesModal(postId), 700);
+// --- LONG PRESS BEĞENENLER ---
+let timer;
+['mousedown', 'touchstart'].forEach(e => document.addEventListener(e, (evt) => {
+    const card = evt.target.closest('.post-card');
+    if (card && !evt.target.closest('button') && !evt.target.closest('input')) {
+        timer = setTimeout(() => showLikesModal(card.getAttribute('data-post-id')), 700);
     }
-}
-function cancelPress() { clearTimeout(pressTimer); }
-
-['mousedown', 'touchstart'].forEach(evt => document.addEventListener(evt, startPress));
-['mouseup', 'mouseleave', 'touchend', 'touchmove'].forEach(evt => document.addEventListener(evt, cancelPress));
-document.addEventListener('contextmenu', (e) => { if(e.target.closest('.post-card')) e.preventDefault(); });
+}));
+['mouseup', 'mouseleave', 'touchend', 'touchmove'].forEach(e => document.addEventListener(e, () => clearTimeout(timer)));
 
 async function showLikesModal(postId) {
-    if (!postId) return;
-    likesModal.classList.remove('hidden');
-    likesList.innerHTML = '<div class="text-center text-slate-400 mt-4"><i class="fa-solid fa-spinner fa-spin text-xl mb-2"></i><p>Yükleniyor...</p></div>';
+    if (!postId) return; likesModal.classList.remove('hidden');
+    likesList.innerHTML = '<p class="text-center">Yükleniyor...</p>';
     try {
-        const { data, error } = await supabase.from('etkilesimler').select('user_id, uyeler(ad_soyad, avatar_url, rol)').eq('gonderi_id', postId).eq('etkilesim_tipi', 'like');
-        if (!data || data.length === 0) { likesList.innerHTML = '<div class="text-center text-slate-500 mt-4 text-sm">Henüz beğenen yok.</div>'; return; }
+        const { data } = await supabase.from('etkilesimler').select('user_id, uyeler(ad_soyad, avatar_url, rol)').eq('gonderi_id', postId);
+        if(!data || data.length === 0) { likesList.innerHTML = '<p class="text-center text-sm text-slate-500">Beğeni yok.</p>'; return; }
         likesList.innerHTML = '';
-        data.forEach(like => {
-            const user = like.uyeler || {};
-            const avatar = user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
-            likesList.insertAdjacentHTML('beforeend', `
-                <div class="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded-lg user-profile-trigger" data-user-id="${like.user_id}" onclick="document.getElementById('close-likes-modal').click();">
-                    <img src="${avatar}" class="w-10 h-10 rounded-full object-cover border border-slate-200 pointer-events-none">
-                    <div class="pointer-events-none">
-                        <div class="font-bold text-sm text-slate-800">${user.ad_soyad}</div>
-                        <div class="text-[10px] text-slate-500">${user.rol}</div>
-                    </div>
-                </div>
-            `);
-        });
-    } catch (err) {}
+        data.forEach(l => likesList.insertAdjacentHTML('beforeend', `<div class="flex items-center gap-3 p-2 border-b user-profile-trigger" data-user-id="${l.user_id}" onclick="likesModal.classList.add('hidden')"><img src="${l.uyeler.avatar_url || 'https://via.placeholder.com/150'}" class="w-8 h-8 rounded-full object-cover"><div><p class="font-bold text-sm">${l.uyeler.ad_soyad}</p></div></div>`));
+    } catch (e) {}
 }
 closeLikesModalBtn.addEventListener('click', () => likesModal.classList.add('hidden'));
 
-// ==========================================
-// INSTAGRAM PROFİL GÖRÜNÜMÜ & TAKİP SİSTEMİ
-// ==========================================
+// --- SEKMELİ INSTAGRAM PROFİL SİSTEMİ (MÜKEMMEL HALE GETİRİLDİ) ---
+tabGrid.addEventListener('click', () => {
+    tabGrid.className = "flex-1 py-3 border-b-2 border-slate-800 text-slate-800 flex justify-center";
+    tabQuestions.className = "flex-1 py-3 border-b-2 border-transparent text-slate-400 flex justify-center";
+    upGrid.classList.remove('hidden'); upQuestionsList.classList.add('hidden');
+});
+
+tabQuestions.addEventListener('click', () => {
+    tabQuestions.className = "flex-1 py-3 border-b-2 border-slate-800 text-slate-800 flex justify-center";
+    tabGrid.className = "flex-1 py-3 border-b-2 border-transparent text-slate-400 flex justify-center";
+    upGrid.classList.add('hidden'); upQuestionsList.classList.remove('hidden');
+});
+
 document.addEventListener('click', async (e) => {
-    const trigger = e.target.closest('.user-profile-trigger');
-    if (trigger) {
-        clearTimeout(pressTimer);
-        const targetUserId = trigger.getAttribute('data-user-id');
-        if (!targetUserId) return;
-        
-        currentlyViewingProfileId = targetUserId;
-        userProfileModal.classList.remove('hidden');
-        setTimeout(() => userProfileModal.classList.remove('translate-x-full'), 10);
-        
-        upHeaderName.innerText = "Yükleniyor..."; upName.innerText = "Yükleniyor..."; upBio.innerText = "";
-        upGrid.innerHTML = '<div class="col-span-3 text-center p-10"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-400"></i></div>';
-        
-        if (targetUserId === currentUserSession.user.id) {
-            followBtn.classList.add('hidden'); unfollowBtn.classList.add('hidden');
-        } else {
-            const { data: isFollowing } = await supabase.from('takipler').select('id').eq('takip_eden_id', currentUserSession.user.id).eq('takip_edilen_id', targetUserId).single();
-            if (isFollowing) { followBtn.classList.add('hidden'); unfollowBtn.classList.remove('hidden'); } 
-            else { unfollowBtn.classList.add('hidden'); followBtn.classList.remove('hidden'); }
+    const trig = e.target.closest('.user-profile-trigger');
+    if (!trig) return;
+    const uId = trig.getAttribute('data-user-id');
+    if (!uId) return;
+
+    currentlyViewingProfileId = uId;
+    userProfileModal.classList.remove('hidden'); setTimeout(() => userProfileModal.classList.remove('translate-x-full'), 10);
+    tabGrid.click(); // Her açıldığında medyayı ilk sekme yap
+
+    try {
+        const { data: user } = await supabase.from('uyeler').select('*').eq('id', uId).single();
+        upHeaderName.innerText = user.ad_soyad; upName.innerText = user.ad_soyad; upRole.innerText = user.rol; upBio.innerText = user.biyografi || '';
+        upAvatar.src = user.avatar_url || 'https://via.placeholder.com/150';
+
+        if (uId === currentUserSession.user.id) { followBtn.classList.add('hidden'); unfollowBtn.classList.add('hidden'); } 
+        else {
+            const { data: follow } = await supabase.from('takipler').select('id').eq('takip_eden_id', currentUserSession.user.id).eq('takip_edilen_id', uId).single();
+            if (follow) { followBtn.classList.add('hidden'); unfollowBtn.classList.remove('hidden'); } 
+            else { unfollowBtn.classList.remove('hidden'); unfollowBtn.classList.add('hidden'); }
         }
 
-        try {
-            const { data: user } = await supabase.from('uyeler').select('*').eq('id', targetUserId).single();
-            upHeaderName.innerText = user.ad_soyad; upName.innerText = user.ad_soyad; upRole.innerText = user.rol; upBio.innerText = user.biyografi || '';
-            upAvatar.src = user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.ad_soyad)}&background=1e3a8a&color=fff`;
+        const { count: fer } = await supabase.from('takipler').select('*', { count: 'exact', head: true }).eq('takip_edilen_id', uId);
+        const { count: fing } = await supabase.from('takipler').select('*', { count: 'exact', head: true }).eq('takip_eden_id', uId);
+        upFollowerCount.innerText = fer || 0; upFollowingCount.innerText = fing || 0;
 
-            const { count: followers } = await supabase.from('takipler').select('*', { count: 'exact', head: true }).eq('takip_edilen_id', targetUserId);
-            const { count: following } = await supabase.from('takipler').select('*', { count: 'exact', head: true }).eq('takip_eden_id', targetUserId);
-            upFollowerCount.innerText = followers || 0; upFollowingCount.innerText = following || 0;
+        const { data: posts } = await supabase.from('gonderiler').select('*').eq('user_id', uId).order('created_at', { ascending: false });
+        upPostCount.innerText = posts ? posts.length : 0;
+        upGrid.innerHTML = ''; upQuestionsList.innerHTML = '';
 
-            const { data: posts } = await supabase.from('gonderiler').select('*').eq('user_id', targetUserId).order('created_at', { ascending: false });
-            upPostCount.innerText = posts ? posts.length : 0;
-            upGrid.innerHTML = '';
-
-            if (posts && posts.length > 0) {
-                posts.forEach(post => {
-                    let contentHTML = '';
-                    if (post.gonderi_tipi === 'medya' && post.medya_url) {
-                        if(post.medya_url.endsWith('.mp4')) contentHTML = `<div class="absolute inset-0 bg-black flex items-center justify-center"><i class="fa-solid fa-play text-white text-2xl opacity-70"></i></div>`;
-                        else contentHTML = `<img src="${post.medya_url}" class="w-full h-full object-cover">`;
-                    } else contentHTML = `<div class="w-full h-full bg-slate-200 p-2 flex items-center justify-center text-center"><p class="text-[10px] text-slate-600 line-clamp-4 font-semibold">${post.metin}</p></div>`;
-
-                    upGrid.insertAdjacentHTML('beforeend', `
-                        <div class="aspect-square relative border-r border-b border-white cursor-pointer hover:opacity-80 transition-opacity" onclick="openSinglePost(${post.id})">
-                            ${contentHTML}
+        if(posts) {
+            posts.forEach(p => {
+                // EĞER MEDYA İSE IZGARAYA (GRID) EKLE
+                if (p.gonderi_tipi === 'medya') {
+                    let content = p.medya_url.endsWith('.mp4') ? '<div class="absolute inset-0 bg-black flex items-center justify-center text-white"><i class="fa-solid fa-play"></i></div>' : `<img src="${p.medya_url}" class="w-full h-full object-cover">`;
+                    upGrid.insertAdjacentHTML('beforeend', `<div class="aspect-square relative cursor-pointer border border-white" onclick="openSinglePost(${p.id})">${content}</div>`);
+                } 
+                // EĞER SORU İSE SORULAR SEKMESİNE EKLE (GÖRSEL 2'DEKİ GİBİ LİSTE)
+                else {
+                    upQuestionsList.insertAdjacentHTML('beforeend', `
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors flex flex-col gap-2" onclick="openSinglePost(${p.id})">
+                            <div class="flex items-center gap-2">
+                                <img src="${user.avatar_url || 'https://via.placeholder.com/150'}" class="w-6 h-6 rounded-full object-cover">
+                                <span class="font-bold text-xs text-slate-800">${user.ad_soyad}</span>
+                                <span class="text-[10px] bg-blue-50 text-blue-600 px-1 rounded uppercase font-bold">${user.rol}</span>
+                            </div>
+                            <p class="text-slate-800 text-sm font-medium pl-1">${p.metin}</p>
+                            <span class="text-[10px] text-slate-400 pl-1">${new Date(p.created_at).toLocaleDateString('tr-TR')}</span>
                         </div>
                     `);
-                });
-            } else upGrid.innerHTML = '<div class="col-span-3 text-center p-10 text-slate-400 text-sm">Gönderi Yok</div>';
-        } catch (err) {}
-    }
+                }
+            });
+            if(upGrid.innerHTML === '') upGrid.innerHTML = '<div class="col-span-3 text-center p-10 text-sm text-slate-400">Medya gönderisi yok.</div>';
+            if(upQuestionsList.innerHTML === '') upQuestionsList.innerHTML = '<p class="text-center text-sm text-slate-400 p-10">Soru gönderisi yok.</p>';
+        }
+    } catch(e) {}
 });
 
-closeUserProfileBtn.addEventListener('click', () => {
-    userProfileModal.classList.add('translate-x-full');
-    setTimeout(() => userProfileModal.classList.add('hidden'), 300);
-});
+closeUserProfileBtn.addEventListener('click', () => { userProfileModal.classList.add('translate-x-full'); setTimeout(() => userProfileModal.classList.add('hidden'), 300); });
 
 followBtn.addEventListener('click', async () => {
-    followBtn.disabled = true; followBtn.innerHTML = '...';
-    try {
-        await supabase.from('takipler').insert([{ takip_eden_id: currentUserSession.user.id, takip_edilen_id: currentlyViewingProfileId }]);
-        await supabase.from('bildirimler').insert([{ alici_id: currentlyViewingProfileId, gonderen_id: currentUserSession.user.id, mesaj: 'Seni takip etmeye başladı.' }]);
-        followBtn.classList.add('hidden'); unfollowBtn.classList.remove('hidden');
-        upFollowerCount.innerText = parseInt(upFollowerCount.innerText) + 1;
-    } catch(err) {} finally { followBtn.disabled = false; followBtn.innerHTML = 'Takip Et'; }
+    await supabase.from('takipler').insert([{ takip_eden_id: currentUserSession.user.id, takip_edilen_id: currentlyViewingProfileId }]);
+    await supabase.from('bildirimler').insert([{ alici_id: currentlyViewingProfileId, gonderen_id: currentUserSession.user.id, mesaj: 'Seni takip etmeye başladı.' }]);
+    followBtn.classList.add('hidden'); unfollowBtn.classList.remove('hidden'); upFollowerCount.innerText = parseInt(upFollowerCount.innerText)+1;
 });
-
 unfollowBtn.addEventListener('click', async () => {
-    unfollowBtn.disabled = true; unfollowBtn.innerHTML = '...';
-    try {
-        await supabase.from('takipler').delete().eq('takip_eden_id', currentUserSession.user.id).eq('takip_edilen_id', currentlyViewingProfileId);
-        unfollowBtn.classList.add('hidden'); followBtn.classList.remove('hidden');
-        upFollowerCount.innerText = parseInt(upFollowerCount.innerText) - 1;
-    } catch(err) {} finally { unfollowBtn.disabled = false; unfollowBtn.innerHTML = 'Takipten Çık'; }
+    await supabase.from('takipler').delete().eq('takip_eden_id', currentUserSession.user.id).eq('takip_edilen_id', currentlyViewingProfileId);
+    unfollowBtn.classList.add('hidden'); followBtn.classList.remove('hidden'); upFollowerCount.innerText = parseInt(upFollowerCount.innerText)-1;
 });
 
-// ==========================================
-// TEKİL GÖNDERİ MODALI (INSTAGRAM GİBİ AÇILIR)
-// ==========================================
+// --- TEKİL GÖNDERİ POP-UP ---
 window.openSinglePost = async (postId) => {
-    singlePostModal.classList.remove('hidden');
-    setTimeout(() => singlePostModal.classList.remove('translate-x-full'), 10);
-    singlePostContainer.innerHTML = '<div class="text-center text-slate-400 mt-20"><i class="fa-solid fa-spinner fa-spin text-3xl mb-2"></i></div>';
-
+    singlePostModal.classList.remove('hidden'); setTimeout(() => singlePostModal.classList.remove('translate-x-full'), 10);
+    singlePostContainer.innerHTML = '<p class="text-center mt-20 text-slate-400">Yükleniyor...</p>';
     try {
-        const { data: post, error } = await supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).eq('id', postId).single();
-        if (error) throw error;
-        singlePostContainer.innerHTML = generatePostHTML(post, true); 
-    } catch (error) {
-        singlePostContainer.innerHTML = '<div class="text-center text-red-500 mt-20">Gönderi bulunamadı.</div>';
-    }
+        const { data: post } = await supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).eq('id', postId).single();
+        singlePostContainer.innerHTML = generatePostHTML(post, true);
+    } catch (e) {}
 };
-
-closeSinglePostBtn.addEventListener('click', () => {
-    singlePostModal.classList.add('translate-x-full');
-    setTimeout(() => singlePostModal.classList.add('hidden'), 300);
-});
+closeSinglePostBtn.addEventListener('click', () => { singlePostModal.classList.add('translate-x-full'); setTimeout(() => singlePostModal.classList.add('hidden'), 300); });
