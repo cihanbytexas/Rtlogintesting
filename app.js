@@ -273,7 +273,7 @@ supabase.auth.onAuthStateChange((event) => {
 });
 
 // ==========================================
-// BİLDİRİM SİSTEMİ (MODAL & BADGE)
+// BİLDİRİM SİSTEMİ VE YÖNLENDİRME MANTIĞI
 // ==========================================
 async function checkNotificationsBadge() {
     if (!currentUserSession) return;
@@ -316,8 +316,9 @@ notificationBtn.addEventListener('click', async () => {
             const isReadClass = notif.okundu ? 'bg-white' : 'bg-blue-50 border border-blue-100';
             const dotClass = notif.okundu ? 'hidden' : 'block';
 
+            // DİKKAT: Yönlendirme fonksiyonu güncellendi (goToPost)
             const notifHTML = `
-                <div class="p-3 rounded-xl flex items-start gap-3 relative cursor-pointer hover:bg-slate-100 transition-colors ${isReadClass}" onclick="markNotificationAsRead(${notif.id})">
+                <div class="p-3 rounded-xl flex items-start gap-3 relative cursor-pointer hover:bg-slate-100 transition-colors ${isReadClass}" onclick="goToPost(${notif.id}, ${notif.gonderi_id})">
                     <span class="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full ${dotClass}"></span>
                     <img src="${avatar}" class="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0">
                     <div class="flex-1 pr-4">
@@ -340,11 +341,43 @@ closeNotificationModalBtn.addEventListener('click', () => {
     checkNotificationsBadge(); 
 });
 
-window.markNotificationAsRead = async (id) => {
+// YENİ: Bildirime Tıklanınca Gönderiye Gitme Fonksiyonu
+window.goToPost = async (notificationId, postId) => {
     try {
-        await supabase.from('bildirimler').update({ okundu: true }).eq('id', id);
-        notificationBtn.click(); 
-    } catch (err) { console.error("Okundu hatası:", err); }
+        // 1. Bildirimi okundu olarak işaretle
+        await supabase.from('bildirimler').update({ okundu: true }).eq('id', notificationId);
+        
+        // 2. Modalı kapat ve zile güncelleme yap
+        notificationModal.classList.add('hidden');
+        checkNotificationsBadge();
+
+        // 3. Yanlış sekmedeysek (Örn: Sadece Sorular'daysak) sekmeyi Tümü'ne çekip akışı yeniliyoruz
+        feedFilters.forEach(f => {
+            f.classList.remove('bg-slate-800', 'text-white');
+            f.classList.add('bg-white', 'text-slate-600', 'border-slate-200');
+        });
+        document.querySelector('.feed-filter[data-filter="all"]').classList.add('bg-slate-800', 'text-white');
+        document.querySelector('.feed-filter[data-filter="all"]').classList.remove('bg-white', 'text-slate-600', 'border-slate-200');
+        currentFeedFilter = 'all';
+
+        // 4. Gönderilerin tamamen yüklendiğinden emin oluyoruz
+        await loadFeed('all');
+
+        // 5. Sayfayı yağ gibi gönderiye kaydır ve dikkat çekmesi için etrafında mavi ışık yak
+        const targetPost = document.getElementById(`post-${postId}`);
+        if (targetPost) {
+            targetPost.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Görsel efekt (Highlight)
+            targetPost.classList.add('ring-4', 'ring-blue-300', 'shadow-lg');
+            setTimeout(() => {
+                targetPost.classList.remove('ring-4', 'ring-blue-300', 'shadow-lg');
+            }, 2000); // 2 saniye sonra ışık söner
+        }
+
+    } catch (err) { 
+        console.error("Yönlendirme hatası:", err); 
+    }
 };
 
 // ==========================================
@@ -517,8 +550,9 @@ async function loadFeed(filterType) {
                 }
             }
 
+            // DİKKAT: Gönderinin ana kapsayıcısına id="post-${post.id}" ve transition özelliği eklendi
             const postHTML = `
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div id="post-${post.id}" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 transition-all duration-500">
                     <div class="flex items-center gap-3 mb-3">
                         <img src="${avatar}" class="w-11 h-11 rounded-full object-cover border border-slate-200">
                         <div>
