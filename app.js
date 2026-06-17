@@ -77,6 +77,7 @@ let activeReplyData = {};
 let selectedAvatarFile = null;
 let selectedUpdateAvatarFile = null;
 let currentlyViewingProfileId = null;
+let realtimeChannel = null; // YENİ: Canlı yayın kanalı
 
 // --- YARDIMCI FONKSİYONLAR ---
 function toggleAuthForms(activeForm) {
@@ -259,10 +260,48 @@ editProfileForm.addEventListener('submit', async (e) => {
 });
 
 logoutBtn.addEventListener('click', async () => {
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel); // Dinlemeyi durdur
     await supabase.auth.signOut();
     mainAppContainer.classList.add('hidden');
     authContainer.classList.remove('hidden');
 });
+
+// YENİ: REALTIME (CANLI YAYIN) DİNLEYİCİSİ
+function setupRealtime() {
+    if (realtimeChannel) return; // Zaten aktifse tekrar açma
+
+    realtimeChannel = supabase.channel('oz-yapi-realtime')
+        // Biri gönderi attığında (INSERT)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gonderiler' }, async (payload) => {
+            // Kendi gönderimiz değilse (çünkü kendi gönderimizi atınca zaten akışı yeniliyoruz)
+            if (payload.new.user_id !== currentUserSession?.user?.id) {
+                // Yeni gelen gönderinin tam verisini (Yazar bilgisi vs) arka planda çek
+                const { data: newPost } = await supabase
+                    .from('gonderiler')
+                    .select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`)
+                    .eq('id', payload.new.id)
+                    .single();
+
+                if (newPost) {
+                    // Eğer uygun filtredeysek en üste ekle
+                    if (currentFeedFilter === 'all' || currentFeedFilter === newPost.gonderi_tipi) {
+                        // Eğer boş ekran yazısı varsa kaldır
+                        const emptyIcon = feedList.querySelector('.fa-folder-open');
+                        if (emptyIcon) feedList.innerHTML = '';
+                        
+                        feedList.insertAdjacentHTML('afterbegin', generatePostHTML(newPost, false));
+                    }
+                }
+            }
+        })
+        // Sana bildirim geldiğinde zildeki kırmızı noktayı anında yak
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bildirimler' }, (payload) => {
+            if (payload.new.alici_id === currentUserSession?.user?.id) {
+                notificationBadge.classList.remove('hidden');
+            }
+        })
+        .subscribe();
+}
 
 // OTURUM KONTROLÜ
 async function checkSession() {
@@ -282,10 +321,13 @@ async function checkSession() {
             document.getElementById('dash-my-profile-trigger').setAttribute('data-user-id', session.user.id);
             document.getElementById('dash-name').setAttribute('data-user-id', session.user.id);
         }
+        
         loadFeed(currentFeedFilter);
         checkNotificationsBadge();
+        setupRealtime(); // Canlı radarı başlat
     } else {
         currentUserSession = null;
+        if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
         mainAppContainer.classList.add('hidden');
         authContainer.classList.remove('hidden');
         toggleAuthForms(loginForm);
@@ -347,7 +389,7 @@ window.openSinglePostAndMarkRead = async (notificationId, postId) => {
     await supabase.from('bildirimler').update({ okundu: true }).eq('id', notificationId);
     notificationModal.classList.add('hidden');
     checkNotificationsBadge();
-    openSinglePost(postId); // Ana sayfada kaydırmak yerine direkt tekil gönderiyi açıyoruz
+    openSinglePost(postId);
 };
 
 // --- GÖNDERİ OLUŞTURMA ---
@@ -404,7 +446,6 @@ feedFilters.forEach(btn => {
     });
 });
 
-// HTML Şablonu Oluşturucu (Hem Ana Akış hem Tekil Gönderi İçin Ortak Fonksiyon)
 function generatePostHTML(post, isSingleView = false) {
     const author = post.yazar || {};
     const avatar = author.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.ad_soyad || 'U')}&background=1e3a8a&color=fff`;
@@ -563,13 +604,10 @@ async function loadFeed(filterType) {
 // ==========================================
 // OPTIMISTIC UI: LIKE & YORUM & AKSİYONLAR
 // ==========================================
-
-// GLOBAL EVENT LISTENER (Hem feed-list hem single-post-container için)
 document.addEventListener('click', async (e) => {
     if (!currentUserSession) return;
     const target = e.target;
 
-    // 1. ANINDA BEĞENME (OPTIMISTIC UI - Yüklenme ekranı kalktı)
     if (target.classList.contains('like-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
@@ -579,7 +617,6 @@ document.addEventListener('click', async (e) => {
         const isCurrentlyLiked = icon.classList.contains('fa-solid');
         let currentCount = parseInt(countSpan.innerText) || 0;
 
-        // Anında Arayüzü Değiştir
         if (isCurrentlyLiked) {
             icon.className = "fa-regular fa-heart text-lg text-slate-500 pointer-events-none";
             target.classList.replace('text-red-500', 'text-slate-500');
@@ -591,7 +628,6 @@ document.addEventListener('click', async (e) => {
         }
         countSpan.innerText = currentCount;
 
-        // Arka Planda Veritabanını Güncelle
         try {
             const { data: existingLike } = await supabase.from('etkilesimler').select('id').eq('gonderi_id', postId).eq('user_id', currentUserSession.user.id).single();
             if (existingLike) {
@@ -602,10 +638,9 @@ document.addEventListener('click', async (e) => {
                     await supabase.from('bildirimler').insert([{ alici_id: authorId, gonderen_id: currentUserSession.user.id, mesaj: 'Gönderini beğendi.', gonderi_id: postId }]);
                 }
             }
-        } catch (err) { console.error("Beğeni DB hatası", err); } // Kullanıcı hissetmez
+        } catch (err) {} 
     }
 
-    // 2. YORUM GÖNDERME (Optimistic UI - Sadece Yorum Alanı Yenilenir)
     if (target.classList.contains('submit-comment-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
@@ -624,15 +659,13 @@ document.addEventListener('click', async (e) => {
             delete activeReplyData[postId];
             inputEl.value = '';
             
-            // Tüm sayfayı yenilemek yerine sadece o postun verisini çekip listeyi güncelliyoruz
             const { data: post } = await supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).eq('id', postId).single();
-            const newHTML = generatePostHTML(post, true); // true = Yorum kısmı açık kalsın
+            const newHTML = generatePostHTML(post, true);
             document.getElementById(`post-${postId}`).outerHTML = newHTML;
 
         } catch (err) {} finally { target.disabled = false; target.innerHTML = '<i class="fa-solid fa-paper-plane text-sm"></i>'; }
     }
 
-    // Diğer Butonlar
     if (target.classList.contains('comment-toggle-btn')) {
         const postId = target.getAttribute('data-post-id');
         const commentSection = document.getElementById(`comment-section-${postId}`);
@@ -655,7 +688,6 @@ document.addEventListener('click', async (e) => {
         document.getElementById(`reply-indicator-${postId}`).classList.replace('flex', 'hidden');
     }
 
-    // GÖNDERİ/YORUM SİL VE DÜZENLE (Silme sonrası sayfayı mecburen yenileriz)
     if (target.classList.contains('delete-post-btn')) {
         const postId = target.getAttribute('data-post-id');
         Swal.fire({ title: 'Sil?', text: "Gönderiyi siliyorum!", icon: 'warning', showCancelButton: true, confirmButtonText: 'Evet' }).then(async (res) => { if (res.isConfirmed) { await supabase.from('gonderiler').delete().eq('id', postId); loadFeed(currentFeedFilter); closeSinglePostBtn.click(); } });
@@ -737,7 +769,6 @@ document.addEventListener('click', async (e) => {
         upHeaderName.innerText = "Yükleniyor..."; upName.innerText = "Yükleniyor..."; upBio.innerText = "";
         upGrid.innerHTML = '<div class="col-span-3 text-center p-10"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-400"></i></div>';
         
-        // Takip Butonu Durumu
         if (targetUserId === currentUserSession.user.id) {
             followBtn.classList.add('hidden'); unfollowBtn.classList.add('hidden');
         } else {
@@ -751,7 +782,6 @@ document.addEventListener('click', async (e) => {
             upHeaderName.innerText = user.ad_soyad; upName.innerText = user.ad_soyad; upRole.innerText = user.rol; upBio.innerText = user.biyografi || '';
             upAvatar.src = user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.ad_soyad)}&background=1e3a8a&color=fff`;
 
-            // Takipçi Sayıları
             const { count: followers } = await supabase.from('takipler').select('*', { count: 'exact', head: true }).eq('takip_edilen_id', targetUserId);
             const { count: following } = await supabase.from('takipler').select('*', { count: 'exact', head: true }).eq('takip_eden_id', targetUserId);
             upFollowerCount.innerText = followers || 0; upFollowingCount.innerText = following || 0;
@@ -784,7 +814,6 @@ closeUserProfileBtn.addEventListener('click', () => {
     setTimeout(() => userProfileModal.classList.add('hidden'), 300);
 });
 
-// Takip Etme / Çıkma İşlemleri
 followBtn.addEventListener('click', async () => {
     followBtn.disabled = true; followBtn.innerHTML = '...';
     try {
@@ -815,7 +844,7 @@ window.openSinglePost = async (postId) => {
     try {
         const { data: post, error } = await supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).eq('id', postId).single();
         if (error) throw error;
-        singlePostContainer.innerHTML = generatePostHTML(post, true); // true = Yorumları açık getir
+        singlePostContainer.innerHTML = generatePostHTML(post, true); 
     } catch (error) {
         singlePostContainer.innerHTML = '<div class="text-center text-red-500 mt-20">Gönderi bulunamadı.</div>';
     }
