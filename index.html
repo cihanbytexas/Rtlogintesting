@@ -11,7 +11,6 @@
         .avatar-upload:hover .avatar-overlay { opacity: 1; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        /* Kullanıcı basılı tutarken metin seçimini engelleme */
         .no-select { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
     </style>
 </head>
@@ -167,7 +166,6 @@
                     </div>
                     <div class="flex-1 flex flex-col justify-center gap-2">
                         <input type="text" id="edit-name" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-blue-500 text-sm" placeholder="Adınız Soyadınız">
-                        <!-- YENİ: Biyografi Ekleme Alanı -->
                         <textarea id="edit-bio" rows="2" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-blue-500 text-sm resize-none" placeholder="Kısa bir biyografi ekle..."></textarea>
                         
                         <div class="flex gap-2">
@@ -255,7 +253,7 @@
         </div>
     </div>
 
-    <!-- BEĞENENLERİ GÖRME MODALI (YENİ) -->
+    <!-- BEĞENENLERİ GÖRME MODALI -->
     <div id="likes-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
             <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -266,17 +264,15 @@
         </div>
     </div>
 
-    <!-- INSTA TARZI KULLANICI PROFİLİ MODALI (YENİ) -->
+    <!-- INSTA TARZI KULLANICI PROFİLİ MODALI -->
     <div id="user-profile-modal" class="fixed inset-0 bg-white z-[60] hidden flex-col transition-transform transform translate-x-full duration-300">
-        <!-- Header -->
         <div class="flex items-center px-4 py-3 border-b border-slate-200">
             <button id="close-user-profile" class="text-slate-800 text-xl mr-4"><i class="fa-solid fa-arrow-left"></i></button>
             <h2 id="up-header-name" class="text-lg font-bold text-slate-800 flex-1">Kullanıcı</h2>
             <i class="fa-solid fa-ellipsis-vertical text-slate-800"></i>
         </div>
         
-        <!-- Profile Info -->
-        <div class="p-4">
+        <div class="p-4 relative">
             <div class="flex items-center justify-between mb-4">
                 <img id="up-avatar" src="https://via.placeholder.com/150" class="w-20 h-20 rounded-full object-cover border border-slate-200 p-0.5">
                 <div class="flex flex-1 justify-center gap-6 text-center">
@@ -285,8 +281,12 @@
                         <div class="text-xs text-slate-500">Gönderi</div>
                     </div>
                     <div>
-                        <div class="font-bold text-lg text-slate-800">-</div>
+                        <div id="up-follower-count" class="font-bold text-lg text-slate-800">0</div>
                         <div class="text-xs text-slate-500">Takipçi</div>
+                    </div>
+                    <div>
+                        <div id="up-following-count" class="font-bold text-lg text-slate-800">0</div>
+                        <div class="text-xs text-slate-500">Takip</div>
                     </div>
                 </div>
             </div>
@@ -295,18 +295,29 @@
                 <span id="up-role" class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase mt-1 inline-block">Rol</span>
                 <p id="up-bio" class="text-sm text-slate-700 mt-1 whitespace-pre-wrap"></p>
             </div>
+            <!-- Takip Et Butonu -->
+            <div class="mt-4 flex gap-2" id="up-action-buttons">
+                <button id="follow-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 rounded-lg text-sm transition-colors hidden">Takip Et</button>
+                <button id="unfollow-btn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-1.5 rounded-lg text-sm transition-colors hidden">Takipten Çık</button>
+            </div>
         </div>
 
-        <!-- Grid Tabs -->
         <div class="flex border-t border-slate-200 mt-2">
             <div class="flex-1 flex justify-center py-3 border-b-2 border-slate-800 text-slate-800"><i class="fa-solid fa-table-cells text-xl"></i></div>
             <div class="flex-1 flex justify-center py-3 text-slate-400"><i class="fa-solid fa-image text-xl"></i></div>
         </div>
 
-        <!-- Grid Posts -->
-        <div id="up-grid" class="flex-1 overflow-y-auto grid grid-cols-3 gap-0.5 bg-slate-100">
-            <!-- Dinamik Yüklenir -->
+        <div id="up-grid" class="flex-1 overflow-y-auto grid grid-cols-3 gap-0.5 bg-slate-100"></div>
+    </div>
+
+    <!-- TEKİL GÖNDERİ MODALI (YENİ) -->
+    <div id="single-post-modal" class="fixed inset-0 bg-white z-[70] hidden flex-col transition-transform transform translate-x-full duration-300">
+        <div class="flex items-center px-4 py-3 border-b border-slate-200 bg-white sticky top-0 z-10">
+            <button id="close-single-post" class="text-slate-800 text-xl mr-4"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2 class="text-lg font-bold text-slate-800 flex-1">Gönderi</h2>
         </div>
+        <!-- Seçilen Gönderi Buraya Basılacak -->
+        <div id="single-post-container" class="flex-1 overflow-y-auto p-4 bg-slate-100 space-y-6"></div>
     </div>
 
     <script type="module" src="app.js"></script>
