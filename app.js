@@ -382,6 +382,7 @@ async function loadConversations() {
     conversationsList.innerHTML = '<div class="text-center text-slate-400 mt-10"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i></div>';
     try {
         const { data: msgs, error } = await supabase.from('mesajlar').select('*, gonderen:uyeler!gonderen_id(id, ad_soyad, avatar_url), alici:uyeler!alici_id(id, ad_soyad, avatar_url)').or(`gonderen_id.eq.${currentUserSession.user.id},alici_id.eq.${currentUserSession.user.id}`).order('created_at', { ascending: false });
+        if (error) throw error;
         if (!msgs || msgs.length === 0) { conversationsList.innerHTML = '<p class="text-center mt-10 text-slate-500">Mesaj kutunuz boş.</p>'; return; }
 
         const convos = {};
@@ -410,7 +411,7 @@ async function loadConversations() {
                 </div>
             `);
         });
-    } catch (error) {}
+    } catch (error) { conversationsList.innerHTML = '<p class="text-center text-red-500 mt-10">Yüklenemedi.</p>'; }
 }
 
 window.openChat = async (targetId, targetName, targetAvatar) => {
@@ -426,7 +427,15 @@ window.openChat = async (targetId, targetName, targetAvatar) => {
         checkMessagesBadge();
         if(!messagesListModal.classList.contains('hidden')) loadConversations();
 
-        const { data: history } = await supabase.from('mesajlar').select('*').or(`and(gonderen_id.eq.${currentUserSession.user.id},alici_id.eq.${targetId}),and(gonderen_id.eq.${targetId},alici_id.eq.${currentUserSession.user.id})`).order('created_at', { ascending: true });
+        // KUSURSUZ .in() MANTIĞI: (Böylece history eksiksiz çekilir)
+        const { data: history, error } = await supabase
+            .from('mesajlar')
+            .select('*')
+            .in('gonderen_id', [currentUserSession.user.id, targetId])
+            .in('alici_id', [currentUserSession.user.id, targetId])
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
 
         chatHistory.innerHTML = '';
         if (history && history.length > 0) {
@@ -435,10 +444,12 @@ window.openChat = async (targetId, targetName, targetAvatar) => {
             chatHistory.innerHTML = '<p class="empty-chat-msg text-center text-slate-400 mt-10 text-sm">İlk mesajı sen gönder!</p>';
         }
         scrollToChatBottom();
-    } catch (error) {}
+    } catch (error) { 
+        chatHistory.innerHTML = '<p class="text-center text-red-500 mt-10">Sohbet yüklenemedi.</p>'; 
+    }
 };
 
-// DÜZELTME: SİLİNME HATASI GİDERİLDİ (Sadece empty-chat-msg varsa silinir) & TASARIM INSTA YAPILDI
+// DÜZELTME: Mesajların üst üste binmesi / silinmesi çözüldü
 function appendMessageToUI(msg, isMine) {
     const emptyMsg = chatHistory.querySelector('.empty-chat-msg');
     if (emptyMsg) emptyMsg.remove();
@@ -484,9 +495,13 @@ chatForm.addEventListener('submit', async (e) => {
     appendMessageToUI(tempMsg, true);
 
     try {
-        await supabase.from('mesajlar').insert([{ gonderen_id: currentUserSession.user.id, alici_id: currentChatUserId, metin: text }]);
+        const { error } = await supabase.from('mesajlar').insert([{ gonderen_id: currentUserSession.user.id, alici_id: currentChatUserId, metin: text }]);
+        if (error) throw error;
         if(!messagesListModal.classList.contains('hidden')) loadConversations();
-    } catch (err) {}
+    } catch (err) { 
+        console.error("Mesaj gönderilemedi:", err);
+        Swal.fire({ icon: 'error', title: 'Hata', text: 'Mesaj iletilemedi.' });
+    }
 });
 
 // --- GÖNDERİ OLUŞTURMA ---
@@ -589,7 +604,6 @@ function generatePostHTML(post, isSingleView = false) {
         commentsHTML += '</div></div>';
     });
 
-    // MEDYA ALANI (Çift Tıklama İçin relative eklendi)
     let mediaHTML = '';
     if (post.gonderi_tipi === 'medya' && post.medya_url) {
         if (post.medya_url.endsWith('.mp4')) {
@@ -625,7 +639,7 @@ function generatePostHTML(post, isSingleView = false) {
             
             <div class="flex items-center gap-6 mt-4 pt-3 border-t border-slate-100 pointer-events-auto">
                 <button class="action-btn like-btn flex items-center gap-2 text-sm font-semibold transition-colors ${isLikedByMe ? 'text-red-500' : 'text-slate-500 hover:text-red-500'}" data-post-id="${post.id}" data-author-id="${post.user_id}">
-                    <i class="${isLikedByMe ? 'fa-solid fa-heart' : 'fa-regular fa-heart'}" id="like-icon-${post.id} pointer-events-none"></i> <span class="pointer-events-none" id="like-count-${post.id}">${likesCount > 0 ? likesCount : 'Beğen'}</span>
+                    <i class="${isLikedByMe ? 'fa-solid fa-heart' : 'fa-regular fa-heart'}" id="like-icon-${post.id}" style="pointer-events:none;"></i> <span style="pointer-events:none;" id="like-count-${post.id}">${likesCount > 0 ? likesCount : 'Beğen'}</span>
                 </button>
                 <button class="action-btn comment-toggle-btn flex items-center gap-2 text-slate-500 hover:text-blue-500 transition-colors text-sm font-semibold" data-post-id="${post.id}">
                     <i class="fa-regular fa-comment pointer-events-none"></i> <span class="pointer-events-none">${allComments.length > 0 ? allComments.length : 'Yorum Yap'}</span>
@@ -667,7 +681,6 @@ document.addEventListener('click', async (e) => {
     if (!currentUserSession) return;
     const target = e.target;
 
-    // BEĞENME (Anlık Değişim)
     if (target.classList.contains('like-btn')) {
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
@@ -767,18 +780,19 @@ document.addEventListener('dblclick', async (e) => {
     const target = e.target;
     
     if (target.classList.contains('post-media-item')) {
+        // Tıklanan resmi seçmekteki gibi engelleme, standart dblclick olsun
+        if (window.getSelection) { window.getSelection().removeAllRanges(); }
+        
         const postId = target.getAttribute('data-post-id');
         const authorId = target.getAttribute('data-author-id');
         
-        // Animasyonu Tetikle
         const bigHeart = document.getElementById(`big-heart-${postId}`);
         if (bigHeart) {
             bigHeart.classList.remove('heart-pop');
-            void bigHeart.offsetWidth; // Reflow tetikle
+            void bigHeart.offsetWidth;
             bigHeart.classList.add('heart-pop');
         }
 
-        // Beğeniyi Ekle (Eğer zaten beğenilmemişse)
         const icon = document.getElementById(`like-icon-${postId}`);
         const countSpan = document.getElementById(`like-count-${postId}`);
         const isLiked = icon.classList.contains('fa-solid');
