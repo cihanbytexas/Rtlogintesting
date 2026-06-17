@@ -262,7 +262,6 @@ async function checkSession() {
         currentUserSession = session;
         authContainer.classList.add('hidden'); mainAppContainer.classList.remove('hidden');
         
-        // Hata alsa bile e-postayı garantili ekrana bas (Yükleniyor bug'ı çözümü)
         document.getElementById('dash-email').innerText = session.user.email;
 
         try {
@@ -275,7 +274,7 @@ async function checkSession() {
                 document.getElementById('dash-my-profile-trigger').setAttribute('data-user-id', session.user.id);
                 document.getElementById('dash-name').setAttribute('data-user-id', session.user.id);
             }
-        } catch (e) { console.error("Kullanıcı verisi çekerken hata", e); }
+        } catch (e) { console.error("Kullanıcı verisi hatası", e); }
         
         loadFeed(currentFeedFilter);
         checkNotificationsBadge();
@@ -288,7 +287,13 @@ async function checkSession() {
     }
 }
 
-// --- BİLDİRİMLER ---
+document.addEventListener('DOMContentLoaded', checkSession);
+supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') toggleAuthForms(resetPasswordForm);
+    else if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') checkSession();
+});
+
+// --- BİLDİRİMLER (AKILLI TIKLAMA EKLENDİ) ---
 async function checkNotificationsBadge() {
     if (!currentUserSession) return;
     try {
@@ -308,8 +313,16 @@ notificationBtn.addEventListener('click', async () => {
         notifications.forEach(notif => {
             const sender = notif.gonderen || {};
             const avatar = sender.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(sender.ad_soyad || 'U')}`;
+            const isReadClass = notif.okundu ? 'bg-white' : 'bg-blue-50 border border-blue-100';
+            const dotClass = notif.okundu ? 'hidden' : 'block';
+            
+            // DİKKAT: Yeni yönlendirme fonksiyonu (Hem gonderi_id hem gonderen_id yolluyoruz)
+            const postIdParam = notif.gonderi_id ? `'${notif.gonderi_id}'` : 'null';
+            const senderIdParam = notif.gonderen_id ? `'${notif.gonderen_id}'` : 'null';
+
             notificationList.insertAdjacentHTML('beforeend', `
-                <div class="p-3 rounded-xl flex items-start gap-3 relative cursor-pointer hover:bg-slate-100 bg-white border border-slate-100 ${notif.okundu ? '' : 'bg-blue-50/60'}" onclick="openSinglePostAndMarkRead(${notif.id}, ${notif.gonderi_id})">
+                <div class="p-3 rounded-xl flex items-start gap-3 relative cursor-pointer hover:bg-slate-100 bg-white border border-slate-100 ${notif.okundu ? '' : 'bg-blue-50/60'}" onclick="handleNotificationClick(${notif.id}, ${postIdParam}, ${senderIdParam})">
+                    <span class="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full ${dotClass}"></span>
                     <img src="${avatar}" class="w-10 h-10 rounded-full object-cover flex-shrink-0">
                     <div class="flex-1 text-sm text-slate-800"><span class="font-bold">${sender.ad_soyad}</span> ${notif.mesaj}</div>
                 </div>
@@ -320,10 +333,19 @@ notificationBtn.addEventListener('click', async () => {
 
 closeNotificationModalBtn.addEventListener('click', () => { notificationModal.classList.add('hidden'); checkNotificationsBadge(); });
 
-window.openSinglePostAndMarkRead = async (notificationId, postId) => {
+// YENİ: Akıllı Bildirim Yönlendirici (Takip vs Gönderi Ayrımı)
+window.handleNotificationClick = async (notificationId, postId, senderId) => {
+    // 1. Önce okundu yap
     await supabase.from('bildirimler').update({ okundu: true }).eq('id', notificationId);
-    notificationModal.classList.add('hidden'); checkNotificationsBadge();
-    openSinglePost(postId);
+    notificationModal.classList.add('hidden');
+    checkNotificationsBadge();
+
+    // 2. Nereye gideceğine karar ver
+    if (postId && postId !== 'null' && postId !== 'undefined') {
+        openSinglePost(postId); // Gönderi varsa gönderiye git
+    } else if (senderId && senderId !== 'null') {
+        openUserProfile(senderId); // Gönderi yoksa (örn: Takip) profile git
+    }
 };
 
 // --- GÖNDERİ OLUŞTURMA ---
@@ -556,7 +578,7 @@ document.addEventListener('click', async (e) => {
         delete activeReplyData[pId]; document.getElementById(`reply-indicator-${pId}`).classList.replace('flex', 'hidden');
     }
 
-    // YENİ: SİLME ONAYI GERİ GELDİ (Gönderi İçin)
+    // SİLME ONAYI GERİ GELDİ (Gönderi İçin)
     if (target.classList.contains('delete-post-btn')) {
         const postId = target.getAttribute('data-post-id');
         Swal.fire({
@@ -577,7 +599,7 @@ document.addEventListener('click', async (e) => {
         });
     }
 
-    // YENİ: SİLME ONAYI GERİ GELDİ (Yorum İçin)
+    // SİLME ONAYI GERİ GELDİ (Yorum İçin)
     if (target.classList.contains('delete-comment-btn')) {
         const commentId = target.getAttribute('data-comment-id');
         Swal.fire({
@@ -634,7 +656,7 @@ async function showLikesModal(postId) {
 }
 closeLikesModalBtn.addEventListener('click', () => likesModal.classList.add('hidden'));
 
-// --- SEKMELİ INSTAGRAM PROFİL SİSTEMİ ---
+// --- SEKMELİ INSTAGRAM PROFİL SİSTEMİ (MÜKEMMEL HALE GETİRİLDİ) ---
 tabGrid.addEventListener('click', () => {
     tabGrid.className = "flex-1 py-3 border-b-2 border-slate-800 text-slate-800 flex justify-center transition-all";
     tabQuestions.className = "flex-1 py-3 border-b-2 border-transparent text-slate-400 flex justify-center transition-all";
@@ -647,14 +669,11 @@ tabQuestions.addEventListener('click', () => {
     upGrid.classList.add('hidden'); upQuestionsList.classList.remove('hidden');
 });
 
-document.addEventListener('click', async (e) => {
-    const trig = e.target.closest('.user-profile-trigger');
-    if (!trig) return;
-    const uId = trig.getAttribute('data-user-id');
-    if (!uId) return;
-
+// YENİ: Dışarıdan profili açabilmek için global fonksiyon
+window.openUserProfile = async (uId) => {
     currentlyViewingProfileId = uId;
-    userProfileModal.classList.remove('hidden'); setTimeout(() => userProfileModal.classList.remove('translate-x-full'), 10);
+    userProfileModal.classList.remove('hidden'); 
+    setTimeout(() => userProfileModal.classList.remove('translate-x-full'), 10);
     tabGrid.click();
 
     upGrid.innerHTML = '<div class="col-span-3 text-center p-10"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-400"></i></div>';
@@ -678,7 +697,6 @@ document.addEventListener('click', async (e) => {
 
         const { data: posts } = await supabase.from('gonderiler').select(`*, yazar:uyeler(ad_soyad, avatar_url, rol), etkilesimler(id, user_id), gonderi_yorumlari(id, metin, created_at, user_id, ust_yorum_id, yazar:uyeler(ad_soyad, avatar_url, rol))`).eq('user_id', uId).order('created_at', { ascending: false });
         upPostCount.innerText = posts ? posts.length : 0;
-        
         upGrid.innerHTML = ''; upQuestionsList.innerHTML = '';
 
         if(posts) {
@@ -686,8 +704,8 @@ document.addEventListener('click', async (e) => {
                 if (p.gonderi_tipi === 'medya') {
                     let content = p.medya_url.endsWith('.mp4') ? '<div class="absolute inset-0 bg-black flex items-center justify-center text-white"><i class="fa-solid fa-play"></i></div>' : `<img src="${p.medya_url}" class="w-full h-full object-cover">`;
                     upGrid.insertAdjacentHTML('beforeend', `<div class="aspect-square relative cursor-pointer border border-white" onclick="openSinglePost(${p.id})">${content}</div>`);
-                } else {
-                    // YENİ: Profildeki Sorular sekmesi tam olarak ana sayfadaki gibi aynı şık karta sahip olacak!
+                } 
+                else {
                     upQuestionsList.insertAdjacentHTML('beforeend', generatePostHTML(p, false));
                 }
             });
@@ -695,6 +713,13 @@ document.addEventListener('click', async (e) => {
             if(upQuestionsList.innerHTML === '') upQuestionsList.innerHTML = '<p class="text-center text-sm text-slate-400 p-10">Soru gönderisi yok.</p>';
         }
     } catch(e) {}
+};
+
+document.addEventListener('click', async (e) => {
+    const trig = e.target.closest('.user-profile-trigger');
+    if (!trig) return;
+    const uId = trig.getAttribute('data-user-id');
+    if (uId) openUserProfile(uId);
 });
 
 closeUserProfileBtn.addEventListener('click', () => { userProfileModal.classList.add('translate-x-full'); setTimeout(() => userProfileModal.classList.add('hidden'), 300); });
