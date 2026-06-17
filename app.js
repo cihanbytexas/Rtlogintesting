@@ -7,10 +7,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // --- DOM ELEMENTLERİ ---
 const authContainer = document.getElementById('auth-container');
 const mainAppContainer = document.getElementById('main-app-container');
+
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
 const forgotPasswordForm = document.getElementById('forgot-password-form');
 const resetPasswordForm = document.getElementById('reset-password-form');
+
 const showRegisterBtn = document.getElementById('show-register');
 const showLoginBtn = document.getElementById('show-login');
 const showForgotPasswordBtn = document.getElementById('show-forgot-password');
@@ -25,6 +27,7 @@ const editAvatarInput = document.getElementById('edit-avatar');
 const editAvatarImg = document.getElementById('edit-avatar-img');
 const editNameInput = document.getElementById('edit-name');
 const editBioInput = document.getElementById('edit-bio');
+
 const avatarInput = document.getElementById('reg-avatar');
 const avatarPreview = document.getElementById('avatar-preview');
 
@@ -497,7 +500,6 @@ window.openChat = async (targetId, targetName, targetAvatar) => {
     }
 };
 
-// DÜZELTME: Mesajların üst üste binmesi çözüldü, Kalp Tasarımı Insta Mantığına Çekildi
 function appendMessageToUI(msg, isMine) {
     const emptyMsg = document.getElementById('empty-chat-msg');
     if (emptyMsg) emptyMsg.remove();
@@ -545,7 +547,6 @@ closeChatBtn.addEventListener('click', () => {
     chatModal.classList.add('translate-x-full'); setTimeout(() => chatModal.classList.add('hidden'), 300);
 });
 
-// YAZIYOR... Bildirimini Gönder
 chatInput.addEventListener('input', () => {
     if(currentChatUserId && chatBroadcastChannel) {
         chatBroadcastChannel.send({ type: 'broadcast', event: 'typing', payload: { from: currentUserSession.user.id, to: currentChatUserId } });
@@ -565,7 +566,6 @@ chatForm.addEventListener('submit', async (e) => {
     } catch (err) { Swal.fire({ icon: 'error', title: 'Hata', text: 'Mesaj iletilemedi.' }); }
 });
 
-// DM FOTOĞRAF GÖNDERME
 chatMediaInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if(!file || !currentChatUserId) return;
@@ -590,7 +590,6 @@ chatMediaInput.addEventListener('change', async (e) => {
     }
 });
 
-// DM SİLME & BEĞENME (Anında Silme Optimizasyonu)
 let msgPressTimer;
 chatHistory.addEventListener('mousedown', handleMsgPressStart);
 chatHistory.addEventListener('touchstart', handleMsgPressStart);
@@ -608,7 +607,6 @@ function handleMsgPressStart(e) {
             if(isMine) {
                 Swal.fire({title: 'Mesajı Sil?', icon: 'warning', showCancelButton:true, confirmButtonText:'Sil', cancelButtonText:'İptal', confirmButtonColor: '#d33'}).then(async res => {
                     if(res.isConfirmed) {
-                        // OPTIMISTIC DELETE (Anında kaybolur)
                         const wrapper = document.getElementById(`msg-wrapper-${msgId}`);
                         if(wrapper) {
                             wrapper.style.opacity = '0';
@@ -618,12 +616,11 @@ function handleMsgPressStart(e) {
                     }
                 })
             }
-        }, 600); // 600ms basılı tutma
+        }, 600); 
     }
 }
 function handleMsgPressEnd() { clearTimeout(msgPressTimer); }
 
-// Çift Tıkla Mesaj Beğenme (Insta Mantığı)
 chatHistory.addEventListener('dblclick', async (e) => {
     const bubble = e.target.closest('.msg-bubble');
     if(bubble) {
@@ -646,8 +643,7 @@ chatHistory.addEventListener('dblclick', async (e) => {
     }
 });
 
-
-// --- GÖNDERİ OLUŞTURMA ---
+// --- GÖNDERİ OLUŞTURMA YENİ (TAKİPÇİLERE BİLDİRİM GÖNDERME EKLENDİ) ---
 postTypeRadios.forEach(radio => {
     radio.addEventListener('change', (e) => {
         if(e.target.value === 'medya') mediaUploadContainer.classList.remove('hidden');
@@ -670,7 +666,23 @@ createPostForm.addEventListener('submit', async (e) => {
             await supabase.storage.from('medya').upload(fileName, file);
             finalMediaUrl = supabase.storage.from('medya').getPublicUrl(fileName).data.publicUrl;
         }
-        await supabase.from('gonderiler').insert([{ user_id: currentUserSession.user.id, gonderi_tipi: document.querySelector('input[name="post_type"]:checked').value, metin: postTextInput.value, medya_url: finalMediaUrl }]);
+
+        // GÖNDERİYİ EKLE VE ID'SİNİ AL (YENİ)
+        const { data: newPost, error: insertErr } = await supabase.from('gonderiler').insert([{ user_id: currentUserSession.user.id, gonderi_tipi: document.querySelector('input[name="post_type"]:checked').value, metin: postTextInput.value, medya_url: finalMediaUrl }]).select().single();
+        if (insertErr) throw insertErr;
+
+        // TAKİPÇİLERE BİLDİRİM GÖNDER (YENİ MANTIK)
+        const { data: followers } = await supabase.from('takipler').select('takip_eden_id').eq('takip_edilen_id', currentUserSession.user.id);
+        if (followers && followers.length > 0) {
+            const notifications = followers.map(f => ({
+                alici_id: f.takip_eden_id,
+                gonderen_id: currentUserSession.user.id,
+                mesaj: 'yeni bir gönderi paylaştı.',
+                gonderi_id: newPost.id
+            }));
+            await supabase.from('bildirimler').insert(notifications);
+        }
+
         createPostModal.classList.add('hidden'); createPostForm.reset(); mediaUploadContainer.classList.add('hidden');
         loadFeed(currentFeedFilter);
     } catch (error) {} finally { submitPostBtn.innerHTML = 'Paylaş'; submitPostBtn.disabled = false; }
