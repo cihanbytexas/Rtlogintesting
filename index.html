@@ -13,7 +13,7 @@
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .no-select { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
         
-        /* GÖNDERİ ÇİFT TIKLAMA KALP ANİMASYONU (Kaybolan Büyük Kalp) */
+        /* ÇİFT TIKLAMA KALP ANİMASYONU */
         @keyframes pop {
             0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
             50% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
@@ -21,7 +21,7 @@
         }
         .heart-pop { animation: pop 0.8s ease-out forwards; }
 
-        /* MESAJ ÇİFT TIKLAMA KALP ANİMASYONU (Kalıcı Küçük Kalp) */
+        /* MESAJ ÇİFT TIKLAMA KALP ANİMASYONU */
         @keyframes chatHeartBounce {
             0% { transform: scale(0); }
             50% { transform: scale(1.4); }
@@ -32,7 +32,6 @@
 </head>
 <body class="bg-slate-100 min-h-screen flex flex-col items-center py-10 px-4">
 
-    <!-- GİRİŞ VE KAYIT KUTUSU -->
     <div id="auth-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md transition-all duration-300">
         <div class="text-center mb-8">
             <h2 class="text-2xl font-bold text-slate-800"><i class="fa-solid fa-helmet-safety text-blue-600"></i> Öz Yapı Beta</h2>
@@ -132,7 +131,6 @@
         </form>
     </div>
 
-    <!-- KULLANICI PANELİ VE TOPLULUK AKIŞI -->
     <div id="main-app-container" class="w-full max-w-2xl hidden space-y-6">
         
         <div id="dashboard-container" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -212,12 +210,10 @@
             </div>
 
             <div id="feed-list" class="space-y-6">
-                <!-- Dinamik Gönderiler -->
-            </div>
+                </div>
         </div>
     </div>
 
-    <!-- GÖNDERİ OLUŞTURMA MODALI -->
     <div id="create-post-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl transform transition-transform scale-100">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -262,7 +258,6 @@
         </div>
     </div>
 
-    <!-- BİLDİRİMLER MODALI -->
     <div id="notification-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex justify-end p-0 backdrop-blur-sm transition-opacity">
         <div class="bg-white w-full max-w-sm h-full shadow-2xl flex flex-col transform transition-transform duration-300">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -273,7 +268,6 @@
         </div>
     </div>
 
-    <!-- SOHBET LİSTESİ MODALI -->
     <div id="messages-list-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex justify-end p-0 backdrop-blur-sm transition-opacity">
         <div class="bg-white w-full max-w-sm h-full shadow-2xl flex flex-col transform transition-transform duration-300">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -284,7 +278,6 @@
         </div>
     </div>
 
-    <!-- SOHBET PENCERESİ (DM) - TASARIM GÜNCELLENDİ -->
     <div id="chat-modal" class="fixed inset-0 bg-slate-50 z-[90] hidden flex-col transition-transform transform translate-x-full duration-300">
         <div class="flex items-center px-4 py-3 border-b border-slate-200 bg-white sticky top-0 z-20 shadow-sm">
             <button id="close-chat-btn" class="text-slate-800 text-xl mr-4"><i class="fa-solid fa-arrow-left"></i></button>
@@ -296,14 +289,12 @@
         
         <div id="chat-history" class="flex-1 overflow-y-auto p-4 flex flex-col pb-[90px] bg-slate-50 relative"></div>
         
-        <!-- YAZIYOR GÖSTERGESİ (ŞIK VE İNPUT ÜSTÜ) -->
         <div id="chat-typing-indicator" class="absolute bottom-[75px] left-4 hidden bg-white border border-slate-200 rounded-full shadow-sm px-4 py-2 flex items-center gap-1.5 z-10 transition-all">
             <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
             <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.15s"></span>
             <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></span>
         </div>
         
-        <!-- MESAJ GÖNDERME FORMU -->
         <form id="chat-form" class="p-2 bg-white border-t border-slate-200 flex gap-2 items-center fixed bottom-0 left-0 w-full z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <label class="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors p-2">
                 <i class="fa-solid fa-image text-[22px]"></i>
@@ -314,7 +305,6 @@
         </form>
     </div>
 
-    <!-- DİĞER MODALLAR -->
     <div id="likes-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
             <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
