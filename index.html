@@ -204,7 +204,7 @@
             </div>
 
             <div id="feed-list" class="space-y-6">
-                <!-- Dinamik Gönderiler -->
+                <!-- Dinamik Gönderiler Listesi -->
             </div>
         </div>
     </div>
@@ -276,7 +276,7 @@
         </div>
     </div>
 
-    <!-- SOHBET PENCERESİ (DM) -->
+    <!-- SOHBET PENCERESİ (DM) (GÜNCELLENDİ) -->
     <div id="chat-modal" class="fixed inset-0 bg-slate-50 z-[90] hidden flex-col transition-transform transform translate-x-full duration-300">
         <div class="flex items-center px-4 py-3 border-b border-slate-200 bg-white sticky top-0 z-10 shadow-sm">
             <button id="close-chat-btn" class="text-slate-800 text-xl mr-4"><i class="fa-solid fa-arrow-left"></i></button>
@@ -285,10 +285,20 @@
                 <h2 id="chat-user-name" class="text-[15px] font-bold text-slate-800 cursor-pointer user-profile-trigger hover:underline">İsim</h2>
             </div>
         </div>
-        <div id="chat-history" class="flex-1 overflow-y-auto p-4 flex flex-col pb-20 bg-slate-50"></div>
-        <form id="chat-form" class="p-3 bg-white border-t border-slate-200 flex gap-2 fixed bottom-0 left-0 w-full z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            <input type="text" id="chat-input" required autocomplete="off" class="flex-1 px-4 py-2 bg-slate-100 border border-slate-200 rounded-full text-[14px] focus:outline-none focus:border-slate-300 focus:bg-white" placeholder="Mesaj yaz...">
-            <button type="submit" id="send-msg-btn" class="w-10 h-10 bg-slate-800 hover:bg-slate-900 text-white rounded-full flex items-center justify-center transition-colors"><i class="fa-solid fa-paper-plane text-sm"></i></button>
+        
+        <div id="chat-history" class="flex-1 overflow-y-auto p-4 flex flex-col pb-20 bg-slate-50 relative"></div>
+        
+        <!-- YAZIYOR GÖSTERGESİ -->
+        <div id="chat-typing-indicator" class="text-[11px] font-semibold text-slate-400 italic px-4 py-1 absolute bottom-[60px] left-0 hidden bg-white/80 rounded-tr-lg backdrop-blur-sm z-10">Yazıyor...</div>
+        
+        <!-- MESAJ GÖNDERME FORMU -->
+        <form id="chat-form" class="p-2 bg-white border-t border-slate-200 flex gap-2 items-center fixed bottom-0 left-0 w-full z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <label class="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors p-2">
+                <i class="fa-solid fa-image text-[22px]"></i>
+                <input type="file" id="chat-media-input" accept="image/*" class="hidden">
+            </label>
+            <input type="text" id="chat-input" autocomplete="off" class="flex-1 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-full text-[14px] focus:outline-none focus:border-slate-300 focus:bg-white" placeholder="Mesaj yaz...">
+            <button type="submit" id="send-msg-btn" class="w-10 h-10 bg-slate-800 hover:bg-slate-900 text-white rounded-full flex items-center justify-center transition-colors shadow-sm"><i class="fa-solid fa-paper-plane text-sm"></i></button>
         </form>
     </div>
 
@@ -303,7 +313,7 @@
         </div>
     </div>
 
-    <!-- PROFİL MODALI -->
+    <!-- INSTA TARZI KULLANICI PROFİLİ MODALI -->
     <div id="user-profile-modal" class="fixed inset-0 bg-white z-[60] hidden flex-col transition-transform transform translate-x-full duration-300">
         <div class="flex items-center px-4 py-3 border-b border-slate-200 bg-white sticky top-0 z-10">
             <button id="close-user-profile" class="text-slate-800 text-xl mr-4"><i class="fa-solid fa-arrow-left"></i></button>
